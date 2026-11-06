@@ -1,14 +1,16 @@
 package com.example.couplemessager.data
 
 import android.util.Log
-import io.github.jan_tennert.supabase.createSupabaseClient
-import io.github.jan_tennert.supabase.postgrest.Postgrest
-import io.github.jan_tennert.supabase.postgrest.postgrest
-import io.github.jan_tennert.supabase.postgrest.query.Order
-import io.github.jan_tennert.supabase.realtime.PostgresAction
-import io.github.jan_tennert.supabase.realtime.Realtime
-import io.github.jan_tennert.supabase.realtime.createChannel
-import io.github.jan_tennert.supabase.realtime.postgresChangeFlow
+import com.example.couplemessager.BuildConfig
+import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.Realtime
+import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.postgresChangeFlow
+import io.github.jan.supabase.realtime.realtime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,9 +20,8 @@ import kotlinx.serialization.json.decodeFromJsonElement
 
 object ChatRepository {
 
-    // TODO: вставьте данные вашего проекта (Supabase Dashboard -> Settings -> API)
-    private const val SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"
-    private const val SUPABASE_ANON_KEY = "YOUR_ANON_KEY"
+    private val SUPABASE_URL = BuildConfig.SUPABASE_URL
+    private val SUPABASE_ANON_KEY = BuildConfig.SUPABASE_ANON_KEY
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -44,7 +45,7 @@ object ChatRepository {
                 .decodeList<Message>()
 
             // 2. Подписываемся на новые строки в таблице messages
-            val channel = supabase.realtime.createChannel("messages-channel")
+            val channel = supabase.realtime.channel("messages-channel")
             val flow = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
                 table = "messages"
             }
@@ -69,7 +70,13 @@ object ChatRepository {
     }
 
     suspend fun sendMessage(text: String, sender: String) {
-        supabase.postgrest["messages"].insert(NewMessage(text, sender))
-        // Своё сообщение вернется обратно через Realtime, отдельно добавлять не нужно
+        try {
+            supabase.postgrest["messages"].insert(NewMessage(text, sender))
+            _status.value = "Connected"
+            // Своё сообщение вернется обратно через Realtime, отдельно добавлять не нужно
+        } catch (e: Exception) {
+            Log.e("ChatRepository", "Failed to send message", e)
+            _status.value = "Send error: ${e.message ?: e.javaClass.simpleName}"
+        }
     }
 }
