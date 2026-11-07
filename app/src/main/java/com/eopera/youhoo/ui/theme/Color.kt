@@ -1,4 +1,4 @@
-package com.example.couplemessager.ui.theme
+package com.eopera.youhoo.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

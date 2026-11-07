@@ -1,4 +1,4 @@
-package com.example.couplemessager
+package com.eopera.youhoo
 
 import org.junit.Test
 

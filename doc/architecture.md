@@ -70,7 +70,7 @@ The initial implementation can remain in one Gradle `app` module. Package bounda
 ### 4.2. Recommended Package Boundaries
 
 ```text
-com.example.couplemessager
+com.eopera.youhoo
 ├── core
 │   ├── auth
 │   ├── common

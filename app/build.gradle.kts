@@ -13,13 +13,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.couplemessager"
+    namespace = "com.eopera.youhoo"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.couplemessager"
+        applicationId = "com.eopera.youhoo"
         minSdk = 24
         targetSdk = 37
         versionCode = 1

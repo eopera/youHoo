@@ -1,4 +1,4 @@
-package com.example.couplemessager.ui
+package com.eopera.youhoo.ui
 
 import android.content.Context
 import androidx.compose.foundation.background
@@ -32,8 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.example.couplemessager.data.ChatRepository
-import com.example.couplemessager.data.Message
+import com.eopera.youhoo.data.ChatRepository
+import com.eopera.youhoo.data.Message
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)

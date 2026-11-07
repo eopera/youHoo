@@ -1,4 +1,4 @@
-package com.example.couplemessager.data
+package com.eopera.youhoo.data
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

@@ -27,7 +27,7 @@ The implementation shall use the existing Android project and preserve its curre
 | Supabase Kotlin BOM | 2.6.1 |
 | Network engine | Ktor OkHttp client 2.3.11 |
 | Unit test framework | JUnit 4.13.2 |
-| Application ID | `com.example.couplemessager` |
+| Application ID | `com.eopera.youhoo` |
 
 The project already contains Supabase PostgREST and Realtime dependencies. Core implementation will additionally require the Supabase Auth and Storage modules, Room, WorkManager, Firebase Cloud Messaging, lifecycle-aware ViewModel support, and an image loading solution. Versions shall be managed consistently through the version catalog where applicable.
 

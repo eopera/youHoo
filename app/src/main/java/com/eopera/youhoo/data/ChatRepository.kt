@@ -1,7 +1,7 @@
-package com.example.couplemessager.data
+package com.eopera.youhoo.data
 
 import android.util.Log
-import com.example.couplemessager.BuildConfig
+import com.eopera.youhoo.BuildConfig
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
