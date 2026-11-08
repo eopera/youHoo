@@ -1,3 +1,15 @@
 <resources>
     <string name="app_name">youHoo</string>
+    <string name="chat_title">Family Messenger</string>
+    <string name="your_name">Your name</string>
+    <string name="message_hint">Message</string>
+    <string name="send">Send</string>
+    <string name="sending">Sending…</string>
+    <string name="retry">Retry</string>
+    <string name="empty_chat">No messages yet. Start the conversation.</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_loading">Loading history…</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_connection_error">Connection failed. Your draft is preserved.</string>
+    <string name="status_send_error">Message was not sent. Check your connection and try again.</string>
 </resources>

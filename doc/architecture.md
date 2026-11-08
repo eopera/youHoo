@@ -1,13 +1,30 @@
 # Architecture
 
-**Status:** Proposed target architecture  
-**Related document:** [Business requirements](business-requirements.md)
+**Status:** v1 presentation architecture implemented; backend and offline architecture proposed  
+**Related documents:** [Business requirements](business-requirements.md), [Technical requirements](technical-requirements.md)
 
 ## 1. Purpose
 
 This document describes the target architecture of the family messenger. It covers the Android client, Supabase backend, local persistence, synchronization, notifications, media storage, and security boundaries.
 
 The architecture is designed for a small, predefined family group. It prioritizes reliable private communication, instant access to cached conversations, and simple operation over public discovery or large-scale group messaging.
+
+### 1.1. Cross-Cutting Design Principles
+
+These principles apply to the current v1 code and to all future features:
+
+1. **Presentation and behavior are separate.** Composables render immutable UI state and emit events. They do not perform network, database, preferences, validation, or timestamp-formatting work.
+2. **One feature state contract.** A screen has one `UiState` data class and one event type. Alternative visual implementations consume the same state and events, so changing or comparing designs cannot change feature behavior.
+3. **Vendor APIs stay behind boundaries.** UI code must not import Supabase, Room, Ktor, Firebase, or Android preferences APIs. Repositories are interfaces; vendor-specific implementations live in `data`.
+4. **Dependency inversion over singletons.** Dependencies are constructor-injected with Hilt. Global `object` repositories and service-locator calls are not allowed.
+5. **Unidirectional data flow.** State flows down from a lifecycle-aware ViewModel; events flow up. Activity and composable code do not own connection jobs or feature state.
+6. **A small application design system.** Feature code uses app components, dimensions, shapes, typography, and color tokens. Direct Material components and hard-coded dimensions are restricted to the design-system package.
+7. **UI variants are interchangeable.** A feature-flag provider selects a screen variant. A variant replaces presentation only; it must not branch repository, validation, sending, or synchronization logic.
+8. **Offline design review.** Screens and components have previews with representative fake states. Previews and tests must not require Supabase or an Android device.
+9. **Presentation-ready models.** ViewModels map domain data into UI models, including formatted timestamps and ownership flags. Composables do not parse backend strings.
+10. **Explicit user-facing states.** Loading, connected, connection failure, send failure, empty, and disabled states are modeled explicitly. Raw exception messages never reach the UI.
+11. **Resource-backed copy and deliberate theming.** User-visible strings use resources. Brand theme and dynamic color are explicit choices rather than accidental defaults.
+12. **Evolutionary modularity.** v1 remains one Gradle module with package boundaries. Physical modules are introduced only when dependency enforcement, build time, or team ownership justifies them.
 
 ## 2. Architectural Drivers
 
@@ -105,6 +122,46 @@ Feature packages contain screens and ViewModels. Data packages contain DAOs, ent
 | `OutboxWorker` | Retries pending sends, read receipts, and visibility changes with backoff |
 
 These names describe responsibilities, not mandatory class names.
+
+### 4.4. Implemented v1 Chat Slice
+
+The first working chat keeps its existing Supabase table and realtime behavior, but uses the following concrete boundaries:
+
+```text
+com.eopera.youhoo
+├── YouHooApplication              Hilt application entry point
+├── MainActivity                   Compose host only
+├── core/model                     Vendor-independent chat models
+├── data
+│   ├── local                      Preferences-backed profile implementation
+│   ├── remote                     Supabase DTOs and client configuration
+│   └── repository                 SupabaseChatRepository
+├── di                             Hilt bindings and providers
+├── domain/repository              ChatRepository and UserProfileRepository contracts
+├── feature/chat
+│   ├── ChatRoute                  Lifecycle-aware state collection and variant selection
+│   ├── ChatViewModel              Connection, input, validation, and mapping
+│   ├── ChatUiState                Single presentation contract
+│   ├── ChatScreen                 Classic visual implementation
+│   └── CompactChatScreen          Alternative visual implementation
+└── ui/theme + ui/components       Design tokens and app component wrappers
+```
+
+The current data flow is:
+
+```text
+Supabase <-> SupabaseChatRepository <-> ChatRepository interface
+                                           |
+UserProfileRepository <------------------- ChatViewModel
+                                           |
+                                     ChatUiState + ChatEvent
+                                           |
+                            ChatRoute / feature-flag selection
+                                  /                       \
+                          ChatScreen                 CompactChatScreen
+```
+
+`MainActivity` does not start realtime work. `ChatViewModel` owns one connection job in `viewModelScope`, so configuration changes do not duplicate subscriptions. Repository errors become typed states; exception details remain in logs. The v1 in-memory message list is intentionally not described as offline persistence. Room and the outbox remain target-architecture work.
 
 ## 5. Local Data and Source of Truth
 
