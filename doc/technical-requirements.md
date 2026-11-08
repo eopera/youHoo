@@ -57,8 +57,10 @@ The following requirements are mandatory for the current chat and every subseque
 - v1 identifies a sender by the locally entered display name to preserve compatibility with the existing table. This is a temporary v1 rule, not authenticated identity. The target `sender_id` UUID model in section 6 supersedes it during the authentication migration.
 - v1 first-run registration consists of entering a display name that is trimmed, limited to 50 characters, and persisted locally. A non-blank saved name skips registration on later launches. This local onboarding does not create a Supabase Auth account or replace the authentication requirements in section 4.
 - The v1 profile section edits the same persisted display name. Blank names are rejected, and the chat observes changes through `UserProfileRepository`; the name is not synchronized to a remote profile.
+- v1 push notifications use FCM and a Supabase database trigger plus Edge Function. Devices register tokens through a validated security-definer RPC against a locally generated installation UUID, outgoing messages include that UUID, and the backend notifies other registered devices. Anonymous clients cannot directly read or mutate token rows, but v1 token ownership is not authenticated; the authenticated recipient model remains mandatory for production authorization.
+- Android requests notification permission after local registration, uses the high-importance `family_messages` channel with private lock-screen visibility, and opens the chat when a notification is tapped. Missing Firebase client configuration disables push registration without affecting chat.
 - v1 UI variants are build-time flags. Runtime remote A/B rollout requires a remote `FeatureFlagProvider` implementation and analytics; it shall not be simulated with local preferences or presented as a production experiment platform.
-- Room, outbox retry, authentication, push notifications, and media behavior described below remain requirements for later milestones rather than claims about v1 functionality.
+- Room, outbox retry, authentication, and media behavior described below remain requirements for later milestones rather than claims about v1 functionality.
 
 ## 3. Configuration and Secrets
 

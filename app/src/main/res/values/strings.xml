@@ -1,5 +1,8 @@
 <resources>
     <string name="app_name">youHoo</string>
+    <string name="notification_channel_messages" translatable="false">family_messages</string>
+    <string name="notification_channel_name">Family messages</string>
+    <string name="notification_channel_description">Notifications about new family messages</string>
     <string name="chat_title">Family Messenger</string>
     <string name="your_name">Your name</string>
     <string name="registration_title">Welcome to youHoo</string>

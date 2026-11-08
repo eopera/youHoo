@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "227448068235",
+    "project_id": "youhoo-5178d",
+    "storage_bucket": "youhoo-5178d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:227448068235:android:777dc04112db7bbd0e9c8e",
+        "android_client_info": {
+          "package_name": "com.eopera.youhoo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCA4u2QhpfQKr2-plEOEBsDCud3oxjx7Rc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -3,6 +3,7 @@ package com.eopera.youhoo.feature.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.eopera.youhoo.domain.repository.ChatRepository
+import com.eopera.youhoo.domain.repository.DevicePushRepository
 import com.eopera.youhoo.domain.repository.UserProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -17,6 +18,7 @@ import kotlinx.coroutines.launch
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val userProfileRepository: UserProfileRepository,
+    private val devicePushRepository: DevicePushRepository,
     private val timeFormatter: MessageTimeFormatter,
     featureFlagProvider: FeatureFlagProvider
 ) : ViewModel() {
@@ -57,6 +59,9 @@ class ChatViewModel @Inject constructor(
     )
 
     init {
+        viewModelScope.launch {
+            devicePushRepository.registerDevice()
+        }
         connect()
     }
 

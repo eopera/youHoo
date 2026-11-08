@@ -12,7 +12,7 @@ Read the documents in `doc/` before changing product behavior:
 - `doc/architecture.md`: current v1 boundaries and the proposed Compose/MVVM, Room, Supabase, WorkManager, and FCM target architecture.
 - `doc/technical-requirements.md`: current v1 behavior and the proposed implementation contract, data model, security rules, synchronization behavior, and acceptance tests.
 
-The architecture and technical documents explicitly distinguish implemented v1 behavior from the **proposed target**. Do not describe Room, Supabase Auth, offline caching, WorkManager, FCM, media storage, or backend profile synchronization as already present: none of those are implemented in this repository. Local display-name registration is not account authentication.
+The architecture and technical documents explicitly distinguish implemented v1 behavior from the **proposed target**. Do not describe Room, Supabase Auth, offline caching, WorkManager, media storage, or backend profile synchronization as already present: none of those are implemented in this repository. Local display-name registration is not account authentication. FCM push notifications are implemented, but real delivery requires Firebase client configuration and a server-side service-account secret.
 
 ## Technology and platform baseline
 
@@ -22,7 +22,8 @@ The architecture and technical documents explicitly distinguish implemented v1 b
 - Java source/target compatibility: **Java 11**. The Gradle daemon toolchain configuration specifies JVM **25**.
 - Android: `minSdk = 24`, `targetSdk = 37`, `compileSdk = 37`, and `buildToolsVersion = "36.0.0"`.
 - UI: single-activity Jetpack Compose with Material 3, Compose BOM **2026.02.01**, edge-to-edge content, and dynamic color as an explicit opt-in on Android 12+.
-- Remote data: Supabase Kotlin BOM **2.6.1**, with only the PostgREST and Realtime modules installed.
+- Remote data: Supabase Kotlin BOM **2.6.1**, with PostgREST and Realtime; Supabase Edge Function and PostgreSQL trigger for push delivery.
+- Notifications: Firebase BOM **34.12.0**, Firebase Cloud Messaging, and Android notification channel `family_messages`.
 - Network engine: Ktor OkHttp client **2.3.11**.
 - Dependency injection: Hilt **2.60.1**, with constructor-injected repositories and ViewModels.
 - Asynchronous state: Kotlin coroutines and `StateFlow`; Compose routes collect state with `collectAsStateWithLifecycle`.
@@ -39,23 +40,24 @@ CoupleMessager/
 │   ├── build.gradle.kts                 Android module, SDKs, BuildConfig, dependencies
 │   └── src/
 │       ├── main/
-│       │   ├── AndroidManifest.xml      INTERNET permission and launcher activity
+│       │   ├── AndroidManifest.xml      Internet/notification permissions, activity, FCM service
 │       │   ├── java/com/eopera/youhoo/
-│       │   │   ├── YouHooApplication.kt Hilt application entry point
-│       │   │   ├── MainActivity.kt      Compose host
+│       │   │   ├── YouHooApplication.kt Hilt entry point and notification channel setup
+│       │   │   ├── MainActivity.kt      Compose host and notification permission request
 │       │   │   ├── AppRoute.kt          Registration/chat/profile selection
 │       │   │   ├── AppViewModel.kt      Startup and current-section state
 │       │   │   ├── core/model/          Vendor-independent chat models
 │       │   │   ├── data/
-│       │   │   │   ├── local/           SharedPreferences profile implementation
-│       │   │   │   ├── remote/          Supabase message DTOs
-│       │   │   │   └── repository/      Supabase chat implementation
+│       │   │   │   ├── local/           SharedPreferences profile and installation ID
+│       │   │   │   ├── remote/          Supabase message and device-token DTOs
+│       │   │   │   └── repository/      Supabase chat and Firebase push implementations
 │       │   │   ├── di/                  Hilt providers and repository bindings
-│       │   │   ├── domain/repository/   Chat and profile contracts
+│       │   │   ├── domain/repository/   Chat, profile, and push contracts
 │       │   │   ├── feature/
 │       │   │   │   ├── registration/    First-run name entry
 │       │   │   │   ├── profile/         Display-name editing
 │       │   │   │   └── chat/            Chat state, ViewModel, routes, and variants
+│       │   │   ├── notifications/       FCM service and Android notification rendering
 │       │   │   └── ui/
 │       │   │       ├── components/      App-owned Material 3 wrappers
 │       │   │       └── theme/           Colors, typography, dimensions, and theme
@@ -64,7 +66,10 @@ CoupleMessager/
 │       ├── test/                        Local JVM ViewModel and formatter tests
 │       └── androidTest/                 Compose UI tests
 ├── doc/                                 Business, technical design, and Supabase deployment guide
-├── supabase/                            CLI config and reproducible database migrations
+├── supabase/
+│   ├── migrations/                      Messages and push-notification schema
+│   └── functions/send-message-push/     FCM v1 backend delivery
+├── supabase/config.toml                 Local stack and Edge Function configuration
 ├── gradle/libs.versions.toml            Android dependency and plugin catalog
 ├── build.gradle.kts                     Root plugins and shared compile SDK
 ├── settings.gradle.kts                  Module/repository/plugin configuration
@@ -90,9 +95,11 @@ The current message flow is:
 5. `sendMessage(text, sender)` inserts a `NewSupabaseMessageDto`; it does not update the local list directly. The sent message is expected to return through Realtime.
 6. Errors are caught in the repository, logged without message contents, and exposed through the typed status flow. There is no automatic reconnect, durable queue, or retry mechanism.
 
-The current remote model is deliberately simple: `Message` contains a `Long id`, `text`, `sender`, and string `createdAt`; `NewSupabaseMessageDto` omits `id` and `created_at` so Postgres can supply them. This differs from the UUID-based, participant-aware model in the proposed technical requirements. Check which contract a task targets before changing the model.
+The current remote model is deliberately simple: `Message` contains a `Long id`, `text`, `sender`, and string `createdAt`; `NewSupabaseMessageDto` omits `id` and `created_at` so Postgres can supply them and adds the local installation UUID as `sender_device_id`. This differs from the UUID-based, participant-aware model in the proposed technical requirements. Check which contract a task targets before changing the model.
 
 Chat Composables render `ChatUiState` and emit `ChatEvent`; they do not access repositories directly. `ChatViewModel` maps messages, distinguishes outgoing/incoming bubbles by comparing the trimmed local name with `Message.sender`, trims outgoing text, and disables sending while the input or sender is blank or a send is active. Only in-memory message history is available; process death or offline startup does not restore chat history.
+
+`FirebaseDevicePushRepository` registers and refreshes FCM tokens in `public.device_tokens` against the local installation UUID. A PostgreSQL trigger calls the deployed `send-message-push` Edge Function, which validates the message, excludes the sender device, sends FCM v1 payloads to other tokens, and removes unregistered tokens. `MessageFirebaseMessagingService` renders foreground messages through `MessageNotificationManager`; background payloads use the same `family_messages` channel. Notification taps open chat. Android 13+ permission is requested after local registration. Missing Firebase client values disable push registration without breaking chat; real FCM delivery also requires the `FIREBASE_SERVICE_ACCOUNT` Supabase secret.
 
 ## Configuration and secrets
 
@@ -101,11 +108,15 @@ Create or update the gitignored root `local.properties` with the values needed f
 ```properties
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-public-anonymous-key
+FIREBASE_API_KEY=your-public-firebase-web-api-key
+FIREBASE_APPLICATION_ID=your-public-firebase-app-id
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_SENDER_ID=your-firebase-project-number
 ```
 
-`app/build.gradle.kts` reads these properties and exposes them as string fields in `BuildConfig`. Missing properties become empty strings: compilation and local registration can succeed, but opening chat requires valid values because the Supabase provider validates them. The Android SDK location is also normally configured through `local.properties` or Android Studio.
+`app/build.gradle.kts` reads these properties and exposes them as string fields in `BuildConfig`. Missing Supabase properties prevent chat access. Missing Firebase properties leave push registration disabled while compilation, registration, profile editing, and chat continue to work. Firebase client values are public application configuration, not a service-account credential. See `doc/supabase-deployment.md` for FCM setup and deployment.
 
-The anonymous key is a public client credential, not a service-role credential. Never add a Supabase service-role key, FCM service-account credentials, or other privileged backend secrets to source, `local.properties` examples, `BuildConfig`, or the APK. Do not commit `local.properties`; both root ignore rules exclude it.
+The anonymous key is a public client credential, not a service-role credential. Never add a Supabase service-role key, FCM service-account credentials, or other privileged backend secrets to source, `local.properties` examples, `BuildConfig`, or the APK. The Firebase service-account JSON belongs only in the Supabase function secret `FIREBASE_SERVICE_ACCOUNT`. Do not commit `local.properties`; both root ignore rules exclude it.
 
 ## Build and test commands
 
@@ -152,16 +163,17 @@ Follow the documented boundaries: Composables render immutable state and emit ev
 
 ## Testing strategy
 
-Local JVM tests cover chat mapping and sending, timestamp formatting, startup registration decisions, profile navigation, registration validation and persistence, and profile name editing with fake repositories. Compose instrumented tests cover chat variants and actions, registration actions, and profile actions without initializing Supabase.
+Local JVM tests cover chat mapping and sending, timestamp formatting, startup registration decisions, profile navigation, registration validation and persistence, profile name editing, and push registration startup with fake repositories. Compose instrumented tests cover chat variants and actions, registration actions, and profile actions without initializing Supabase. An Android notification test verifies posting to the `family_messages` channel.
 
-There are still no tests for the real Supabase repository, Realtime events, serialization beyond compilation, or remote access. There is no local test Supabase configuration or mocking framework. Successful fake-repository and Compose tests do not verify remote chat behavior; runtime verification needs valid Supabase configuration and an appropriate remote schema.
+There are still no tests for the real Supabase repository, Realtime events, serialization beyond compilation, real FCM delivery, or remote access. There is no local test Supabase configuration or mocking framework. Successful fake-repository, Compose, and local notification tests do not verify remote chat or FCM behavior; runtime verification needs valid Supabase and Firebase configuration. The Edge Function is deployed and its message validation can be queried remotely, but actual push delivery requires Firebase credentials and two devices.
 
 When adding the proposed core features, `doc/technical-requirements.md` requires coverage for message status mapping, outbox idempotency/retry, unread selection, monotonic delivery/read state, both deletion modes, deterministic ordering, and authenticated session restoration. It also calls for Room DAO/transaction/migration tests, reproducible RLS/Storage policy tests with participants and unrelated users, and end-to-end offline/reconnect/notification scenarios. Database migration tests become mandatory after the initial Room schema is released.
 
 ## Security and privacy considerations
 
-- All backend access is intended to use Supabase HTTPS/secure WebSockets. The manifest currently requests only `INTERNET` permission.
-- The current prototype has no authentication or user-specific authorization logic. Local name registration is not a security boundary. It reads and inserts the shared `messages` table using the anonymous client, so actual access control depends on remote Supabase policies. Do not assume those policies exist or weaken RLS to make the prototype work.
+- All backend access is intended to use Supabase HTTPS/secure WebSockets and FCM HTTPS. The manifest requests `INTERNET` and `POST_NOTIFICATIONS`.
+- The current prototype has no authentication or user-specific authorization logic. Local name registration and installation UUIDs are not security boundaries. Token registration uses the validated security-definer `register_device_token` RPC; anonymous clients cannot directly select, insert, or update device tokens. The RPC is not yet bound to an authenticated user ID. Do not weaken message RLS to make the prototype work.
+- The push function is a database webhook without JWT verification and accepts only existing message IDs. Production use requires authenticated recipients and webhook authorization.
 - The target design requires restrictive RLS and private Storage policies, family-membership authorization, and privileged operations only in trusted backend code.
 - Do not log access/refresh tokens, message bodies, private media URLs, or full push payloads in production code. The current repository logs caught exception classes; avoid expanding this pattern to sensitive payloads or user-facing backend internals.
 - Backup is currently enabled (`android:allowBackup="true"`), while the backup/data-extraction XML files are still samples. Before persisting sensitive local data or session state, implement the exclusions required by the architecture rather than assuming the current rules protect it.

@@ -97,3 +97,52 @@ supabase migration repair --status applied 20261108163512 --remote
 ```
 
 Повторно отмечать эту миграцию не нужно. Команда `migration repair` предназначена только для исправления истории и не должна использоваться вместо обычных миграций.
+
+
+## Push-уведомления через FCM
+
+Миграция `20261108210343_push_notifications.sql` добавляет `messages.sender_device_id`, таблицу `public.device_tokens` и PostgreSQL-триггер на новые сообщения. Миграция `20261108213746_register_device_token_rpc.sql` добавляет проверяемую security-definer RPC `register_device_token`; прямые anonymous insert/update в таблицу токенов после неё запрещены. Edge Function `send-message-push` проверяет сообщение по его ID, отправляет FCM v1 уведомления другим устройствам и удаляет недействительные токены. Токены недоступны анонимному чтению через PostgREST.
+
+### Настройка Android
+
+В Firebase Console создайте Android-приложение с package name `com.eopera.youhoo`. Добавьте его публичные клиентские параметры в gitignored `local.properties`:
+
+```properties
+FIREBASE_API_KEY=your-web-api-key
+FIREBASE_APPLICATION_ID=your-mobilesdk-app-id
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_SENDER_ID=your-firebase-project-number
+```
+
+Эти значения соответствуют `google-services.json`: `api_key.current_key`, `client_info.mobilesdk_app_id`, `project_info.project_id` и `project_info.project_number`. Приложение инициализирует Firebase программно, поэтому plugin `google-services` и файл `google-services.json` не требуются. Пустые значения отключают только push-регистрацию, чат продолжает работать.
+
+### Настройка серверного секрета
+
+В Firebase Console создайте service account с правом отправки Firebase Cloud Messaging. Сохраните весь JSON service account в переменную окружения `FIREBASE_SERVICE_ACCOUNT`, затем передайте её в секреты Supabase:
+
+```bash
+supabase secrets set FIREBASE_SERVICE_ACCOUNT="$FIREBASE_SERVICE_ACCOUNT"
+```
+
+JSON service account является привилегированным секретом. Не помещайте его в Android `local.properties`, `BuildConfig`, исходный код, APK, Git или логи. Файлы `service-account*.json` и `firebase-service-account*.json` исключены через корневой `.gitignore`.
+
+### Развертывание
+
+```bash
+supabase db push --dry-run --remote
+supabase db push --remote
+supabase functions deploy send-message-push --no-verify-jwt --use-api
+```
+
+Перед повторным развертыванием просмотрите SQL и TypeScript. Не используйте `db reset --remote`. Endpoint функции доступен для database webhook без JWT, но принимает только ID реально существующих сообщений. До появления Supabase Auth регистрация и обновление токенов не связаны с authenticated user ID; это ограничение прототипа, а не production authorization.
+
+### Проверка
+
+1. Установите APK с Firebase-параметрами минимум на два устройства и зарегистрируйте разные имена.
+2. Разрешите уведомления на Android 13+.
+3. Сведите приложение на втором устройстве.
+4. Отправьте сообщение с первого устройства.
+5. На втором должно появиться уведомление в канале `family_messages`; нажатие открывает чат.
+6. Проверьте, что устройство отправителя не получило собственное уведомление.
+
+Без `FIREBASE_SERVICE_ACCOUNT` функция вернёт `503`, если зарегистрированные токены есть. Такая конфигурация не подтверждает доставку FCM.
