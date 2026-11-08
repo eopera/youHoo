@@ -62,11 +62,10 @@ class ChatViewModel @Inject constructor(
 
     fun onEvent(event: ChatEvent) {
         when (event) {
-            is ChatEvent.SenderNameChanged ->
-                userProfileRepository.updateSenderName(event.value)
             is ChatEvent.InputChanged -> input.value = event.value
             ChatEvent.SendMessage -> sendMessage()
             ChatEvent.RetryConnection -> connect()
+            ChatEvent.OpenProfile -> Unit
         }
     }
 

@@ -2,6 +2,13 @@
     <string name="app_name">youHoo</string>
     <string name="chat_title">Family Messenger</string>
     <string name="your_name">Your name</string>
+    <string name="registration_title">Welcome to youHoo</string>
+    <string name="registration_description">Enter your name to start messaging your family.</string>
+    <string name="registration_continue">Continue</string>
+    <string name="profile_title">Profile</string>
+    <string name="profile_description">This name is shown to your family in messages.</string>
+    <string name="profile_save">Save</string>
+    <string name="back">Back</string>
     <string name="message_hint">Message</string>
     <string name="send">Send</string>
     <string name="sending">Sending…</string>

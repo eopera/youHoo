@@ -1,6 +1,7 @@
 package com.eopera.youhoo.ui.components
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -65,11 +66,19 @@ fun AppButton(
 fun AppScaffold(
     title: String,
     modifier: Modifier = Modifier,
+    navigationIcon: @Composable () -> Unit = {},
+    actions: @Composable RowScope.() -> Unit = {},
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(
         modifier = modifier,
-        topBar = { TopAppBar(title = { Text(title) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = navigationIcon,
+                actions = actions
+            )
+        },
         content = content
     )
 }

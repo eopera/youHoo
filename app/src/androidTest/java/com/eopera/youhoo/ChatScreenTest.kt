@@ -44,6 +44,18 @@ class ChatScreenTest {
     }
 
     @Test
+    fun profileActionEmitsNavigationEvent() {
+        val events = mutableListOf<ChatEvent>()
+        composeRule.setContent {
+            YouHooTheme { ChatScreen(state, events::add) }
+        }
+
+        composeRule.onNodeWithText("Profile").performClick()
+
+        assertEquals(listOf<ChatEvent>(ChatEvent.OpenProfile), events)
+    }
+
+    @Test
     fun bothVariantsRenderTheSameState() {
         composeRule.setContent {
             YouHooTheme { CompactChatScreen(state, onEvent = {}) }

@@ -60,7 +60,16 @@ internal fun ChatContent(
         }
     }
 
-    AppScaffold(title = stringResource(R.string.chat_title), modifier = modifier) { padding ->
+    AppScaffold(
+        title = stringResource(R.string.chat_title),
+        modifier = modifier,
+        actions = {
+            AppButton(
+                text = stringResource(R.string.profile_title),
+                onClick = { onEvent(ChatEvent.OpenProfile) }
+            )
+        }
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -83,15 +92,6 @@ internal fun ChatContent(
                     )
                 }
             }
-
-            AppTextField(
-                value = state.senderName,
-                onValueChange = { onEvent(ChatEvent.SenderNameChanged(it)) },
-                label = stringResource(R.string.your_name),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = spacing.small)
-            )
 
             if (state.messages.isEmpty()) {
                 AppText(

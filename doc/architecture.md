@@ -123,14 +123,16 @@ Feature packages contain screens and ViewModels. Data packages contain DAOs, ent
 
 These names describe responsibilities, not mandatory class names.
 
-### 4.4. Implemented v1 Chat Slice
+### 4.4. Implemented v1 Chat, Registration, and Profile Slice
 
-The first working chat keeps its existing Supabase table and realtime behavior, but uses the following concrete boundaries:
+The first working chat keeps its existing Supabase table and realtime behavior. Local first-run registration and profile editing use the following concrete boundaries:
 
 ```text
 com.eopera.youhoo
 ├── YouHooApplication              Hilt application entry point
 ├── MainActivity                   Compose host only
+├── AppRoute                       Registration/chat/profile selection
+├── AppViewModel                   Saved-name startup decision and section state
 ├── core/model                     Vendor-independent chat models
 ├── data
 │   ├── local                      Preferences-backed profile implementation
@@ -138,12 +140,15 @@ com.eopera.youhoo
 │   └── repository                 SupabaseChatRepository
 ├── di                             Hilt bindings and providers
 ├── domain/repository              ChatRepository and UserProfileRepository contracts
-├── feature/chat
-│   ├── ChatRoute                  Lifecycle-aware state collection and variant selection
-│   ├── ChatViewModel              Connection, input, validation, and mapping
-│   ├── ChatUiState                Single presentation contract
-│   ├── ChatScreen                 Classic visual implementation
-│   └── CompactChatScreen          Alternative visual implementation
+├── feature
+│   ├── registration               First-run display-name entry and persistence
+│   ├── profile                    Display-name editing and persistence
+│   └── chat
+│       ├── ChatRoute              Lifecycle-aware state collection and variant selection
+│       ├── ChatViewModel          Connection, input, validation, and mapping
+│       ├── ChatUiState            Single presentation contract
+│       ├── ChatScreen             Classic visual implementation
+│       └── CompactChatScreen      Alternative visual implementation
 └── ui/theme + ui/components       Design tokens and app component wrappers
 ```
 
@@ -153,15 +158,17 @@ The current data flow is:
 Supabase <-> SupabaseChatRepository <-> ChatRepository interface
                                            |
 UserProfileRepository <------------------- ChatViewModel
-                                           |
-                                     ChatUiState + ChatEvent
-                                           |
-                            ChatRoute / feature-flag selection
-                                  /                       \
-                          ChatScreen                 CompactChatScreen
+        |                                  |
+        |                            ChatUiState + ChatEvent
+        |                                  |
+        +-> RegistrationViewModel     ChatRoute / feature-flag selection
+        +-> ProfileViewModel                     /                       \
+        +-> AppViewModel                 ChatScreen                 CompactChatScreen
 ```
 
-`MainActivity` does not start realtime work. `ChatViewModel` owns one connection job in `viewModelScope`, so configuration changes do not duplicate subscriptions. Repository errors become typed states; exception details remain in logs. The v1 in-memory message list is intentionally not described as offline persistence. Room and the outbox remain target-architecture work.
+`MainActivity` does not start realtime work. `AppViewModel` treats a persisted non-blank display name as a completed local v1 registration. `RegistrationViewModel` and `ProfileViewModel` validate, trim, length-limit, and persist the same name, so message ownership and sending immediately use the edited value. This is not Supabase Auth and does not create an account, authenticate a user, or provide cross-device profile synchronization.
+
+`ChatViewModel` owns one connection job in `viewModelScope`, so configuration changes do not duplicate subscriptions. Repository errors become typed states; exception details remain in logs. The v1 in-memory message list is intentionally not described as offline persistence. Room and the outbox remain target-architecture work.
 
 ## 5. Local Data and Source of Truth
 
