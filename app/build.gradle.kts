@@ -40,6 +40,26 @@ android {
         )
         buildConfigField(
             "String",
+            "FIREBASE_API_KEY",
+            "\"${localProperties.getProperty("FIREBASE_API_KEY", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FIREBASE_APPLICATION_ID",
+            "\"${localProperties.getProperty("FIREBASE_APPLICATION_ID", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FIREBASE_PROJECT_ID",
+            "\"${localProperties.getProperty("FIREBASE_PROJECT_ID", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FIREBASE_SENDER_ID",
+            "\"${localProperties.getProperty("FIREBASE_SENDER_ID", "")}\""
+        )
+        buildConfigField(
+            "String",
             "CHAT_UI_VARIANT",
             "\"${providers.gradleProperty("CHAT_UI_VARIANT").orElse("CLASSIC").get()}\""
         )
@@ -66,6 +86,7 @@ android {
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(platform(libs.supabase.bom))
+    implementation(platform(libs.firebase.bom))
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
@@ -80,6 +101,8 @@ dependencies {
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.realtime)
     implementation(libs.ktor.client.okhttp)
+    implementation(libs.firebase.messaging)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)

@@ -22,5 +22,6 @@ data class SupabaseMessageDto(
 @Serializable
 data class NewSupabaseMessageDto(
     val text: String,
-    val sender: String
+    val sender: String,
+    @SerialName("sender_device_id") val senderDeviceId: String
 )

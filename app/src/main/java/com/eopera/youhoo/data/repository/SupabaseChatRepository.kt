@@ -3,6 +3,7 @@ package com.eopera.youhoo.data.repository
 import android.util.Log
 import com.eopera.youhoo.core.model.ConnectionStatus
 import com.eopera.youhoo.core.model.Message
+import com.eopera.youhoo.data.local.DeviceIdProvider
 import com.eopera.youhoo.data.remote.NewSupabaseMessageDto
 import com.eopera.youhoo.data.remote.SupabaseMessageDto
 import com.eopera.youhoo.domain.repository.ChatRepository
@@ -26,7 +27,8 @@ import kotlinx.serialization.json.decodeFromJsonElement
 @Singleton
 class SupabaseChatRepository @Inject constructor(
     private val supabase: SupabaseClient,
-    private val json: Json
+    private val json: Json,
+    private val deviceIdProvider: DeviceIdProvider
 ) : ChatRepository {
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     override val messages: StateFlow<List<Message>> = _messages.asStateFlow()
@@ -74,7 +76,11 @@ class SupabaseChatRepository @Inject constructor(
     override suspend fun sendMessage(text: String, sender: String): Result<Unit> =
         try {
             supabase.postgrest[MESSAGES_TABLE].insert(
-                NewSupabaseMessageDto(text = text, sender = sender)
+                NewSupabaseMessageDto(
+                    text = text,
+                    sender = sender,
+                    senderDeviceId = deviceIdProvider.deviceId
+                )
             )
             _connectionStatus.value = ConnectionStatus.CONNECTED
             Result.success(Unit)

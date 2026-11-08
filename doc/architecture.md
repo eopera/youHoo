@@ -294,16 +294,13 @@ The application stores object paths rather than permanent public URLs. Short-liv
 
 ### 7.5. Edge Functions and FCM
 
-A trusted backend trigger or Edge Function reacts to a new message and sends an FCM notification to the recipient's registered devices.
+The implemented v1 flow uses a PostgreSQL trigger on `messages` and the `send-message-push` Edge Function. The function validates the message ID against the authoritative table, reads registered device tokens through the service role, excludes the sender installation UUID, sends FCM v1 notification and data payloads, and removes unregistered tokens. Android registers and refreshes its token through `DevicePushRepository`; message content and FCM tokens are not logged.
 
-The backend function is responsible for:
+The function endpoint accepts database webhook requests without JWT verification, but accepts only IDs of existing messages. Authenticated recipient authorization and webhook authentication remain required before this v1 mechanism is treated as a production security boundary. Anonymous clients cannot select device tokens, although token updates are not yet tied to authenticated users.
 
-- Verifying the event and recipient.
-- Looking up active device tokens.
-- Sending a minimal notification payload.
-- Removing invalid tokens.
+Android uses the `family_messages` high-importance channel with private lock-screen visibility. Foreground FCM messages are rendered by `MessageNotificationManager`; background notification payloads use the same channel. The notification opens `MainActivity` on the chat. Missing Firebase client configuration disables registration without affecting chat.
 
-The client must still fetch authoritative message data from Supabase. FCM payloads must not be treated as proof that a message was delivered to Room.
+The client must still fetch authoritative message data from Supabase. FCM payloads are not treated as proof that a message was delivered to Room. Room, durable reconciliation, and authenticated recipient routing remain target-architecture work.
 
 ## 8. Synchronization and Conflict Handling
 

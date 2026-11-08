@@ -2,8 +2,10 @@ package com.eopera.youhoo.di
 
 import com.eopera.youhoo.BuildConfig
 import com.eopera.youhoo.data.local.SharedPreferencesUserProfileRepository
+import com.eopera.youhoo.data.repository.FirebaseDevicePushRepository
 import com.eopera.youhoo.data.repository.SupabaseChatRepository
 import com.eopera.youhoo.domain.repository.ChatRepository
+import com.eopera.youhoo.domain.repository.DevicePushRepository
 import com.eopera.youhoo.domain.repository.UserProfileRepository
 import com.eopera.youhoo.feature.chat.BuildConfigFeatureFlagProvider
 import com.eopera.youhoo.feature.chat.FeatureFlagProvider
@@ -59,6 +61,12 @@ abstract class RepositoryModule {
     abstract fun bindUserProfileRepository(
         implementation: SharedPreferencesUserProfileRepository
     ): UserProfileRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDevicePushRepository(
+        implementation: FirebaseDevicePushRepository
+    ): DevicePushRepository
 
     @Binds
     @Singleton

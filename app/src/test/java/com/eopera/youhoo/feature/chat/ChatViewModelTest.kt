@@ -28,12 +28,14 @@ class ChatViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private lateinit var chatRepository: FakeChatRepository
     private lateinit var profileRepository: FakeUserProfileRepository
+    private lateinit var devicePushRepository: FakeDevicePushRepository
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         chatRepository = FakeChatRepository()
         profileRepository = FakeUserProfileRepository()
+        devicePushRepository = FakeDevicePushRepository()
     }
 
     @After
@@ -106,9 +108,18 @@ class ChatViewModelTest {
         assertFalse(viewModel.uiState.value.canSend)
     }
 
+    @Test
+    fun `chat starts push registration`() = runTest {
+        createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(1, devicePushRepository.registrations)
+    }
+
     private fun createViewModel() = ChatViewModel(
         chatRepository = chatRepository,
         userProfileRepository = profileRepository,
+        devicePushRepository = devicePushRepository,
         timeFormatter = MessageTimeFormatter(),
         featureFlagProvider = FakeFeatureFlagProvider()
     )
@@ -145,6 +156,18 @@ private class FakeUserProfileRepository : UserProfileRepository {
         mutableName.value = name
     }
     fun setName(name: String) = updateSenderName(name)
+}
+
+private class FakeDevicePushRepository :
+    com.eopera.youhoo.domain.repository.DevicePushRepository {
+    var registrations = 0
+
+    override suspend fun registerDevice(): Result<Unit> {
+        registrations += 1
+        return Result.success(Unit)
+    }
+
+    override suspend fun registerToken(token: String): Result<Unit> = Result.success(Unit)
 }
 
 private class FakeFeatureFlagProvider : FeatureFlagProvider {
