@@ -20,8 +20,8 @@ data class MessageUi(
 )
 
 sealed interface ChatEvent {
-    data class SenderNameChanged(val value: String) : ChatEvent
     data class InputChanged(val value: String) : ChatEvent
     data object SendMessage : ChatEvent
     data object RetryConnection : ChatEvent
+    data object OpenProfile : ChatEvent
 }

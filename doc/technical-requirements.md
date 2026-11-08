@@ -55,6 +55,8 @@ The following requirements are mandatory for the current chat and every subseque
 
 - v1 uses Supabase directly behind `ChatRepository`; its message history is in memory and is not an offline cache.
 - v1 identifies a sender by the locally entered display name to preserve compatibility with the existing table. This is a temporary v1 rule, not authenticated identity. The target `sender_id` UUID model in section 6 supersedes it during the authentication migration.
+- v1 first-run registration consists of entering a display name that is trimmed, limited to 50 characters, and persisted locally. A non-blank saved name skips registration on later launches. This local onboarding does not create a Supabase Auth account or replace the authentication requirements in section 4.
+- The v1 profile section edits the same persisted display name. Blank names are rejected, and the chat observes changes through `UserProfileRepository`; the name is not synchronized to a remote profile.
 - v1 UI variants are build-time flags. Runtime remote A/B rollout requires a remote `FeatureFlagProvider` implementation and analytics; it shall not be simulated with local preferences or presented as a production experiment platform.
 - Room, outbox retry, authentication, push notifications, and media behavior described below remain requirements for later milestones rather than claims about v1 functionality.
 
