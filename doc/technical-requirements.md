@@ -1,6 +1,6 @@
 # Technical Requirements
 
-**Status:** Proposed implementation baseline  
+**Status:** v1 presentation requirements implemented; core messenger requirements proposed  
 **Related documents:** [Business requirements](business-requirements.md), [Architecture](architecture.md)
 
 ## 1. Scope
@@ -26,10 +26,37 @@ The implementation shall use the existing Android project and preserve its curre
 | Compose BOM | 2026.02.01 |
 | Supabase Kotlin BOM | 2.6.1 |
 | Network engine | Ktor OkHttp client 2.3.11 |
-| Unit test framework | JUnit 4.13.2 |
+| Unit test framework | JUnit 4.13.2 and kotlinx-coroutines-test |
+| Dependency injection | Hilt with constructor injection |
+| State collection | Lifecycle-aware `collectAsStateWithLifecycle` |
 | Application ID | `com.eopera.youhoo` |
 
 The project already contains Supabase PostgREST and Realtime dependencies. Core implementation will additionally require the Supabase Auth and Storage modules, Room, WorkManager, Firebase Cloud Messaging, lifecycle-aware ViewModel support, and an image loading solution. Versions shall be managed consistently through the version catalog where applicable.
+
+### 2.1. UI Architecture and Design-System Requirements
+
+The following requirements are mandatory for the current chat and every subsequent screen:
+
+- A composable screen shall accept immutable state and an event callback. It shall have no required dependency on a repository, `Context`, `SharedPreferences`, Supabase, Room, Ktor, Firebase, or a coroutine scope used for data work.
+- Each feature screen shall define a single `UiState` contract. Loading, empty, error, and content values required by that feature shall be representable without parsing raw exceptions.
+- A ViewModel shall expose `StateFlow`, own feature coroutines in `viewModelScope`, validate actions, and map domain models to presentation models. UI code shall collect state with `collectAsStateWithLifecycle`.
+- Repository contracts shall be interfaces in the domain layer. Implementations shall be constructor-injected and replaceable by fakes in unit tests and previews.
+- `Activity` shall only host Compose and platform integration. It shall not call repositories or start feature connection jobs.
+- Backend timestamps shall be parsed and formatted outside composables. Timezone conversion and malformed input shall be handled without crashing rendering.
+- User-visible strings shall be defined in string resources. Raw backend errors, SQL, endpoint details, and stack traces shall not be displayed.
+- Feature code shall use app-owned text fields, buttons, scaffolds, and design tokens. Material 3 calls and numeric dimensions shall be centralized in `ui/components` and `ui/theme`; isolated one-off layout modifiers may use the shared spacing tokens.
+- Colors shall come from the active app theme. The theme shall use the brand palette by default; dynamic color shall be an explicit opt-in.
+- Screen variants shall implement the same state/event contract and shall be selected through `FeatureFlagProvider`. Repository or ViewModel behavior shall not depend on the selected visual variant.
+- The build shall support `-PCHAT_UI_VARIANT=CLASSIC` and `-PCHAT_UI_VARIANT=COMPACT`. The default shall be `CLASSIC`.
+- Every screen and reusable message component shall have offline previews covering representative content. Previews shall use fake UI state rather than repositories or network calls.
+- New layout code shall preserve stable lazy-list keys, accessible labels, touch targets, font scaling, and system insets. Autoscroll shall not pull a user away from older messages unless they are already near the latest message or sent the new message themselves.
+
+### 2.2. v1 Boundary and Non-Claims
+
+- v1 uses Supabase directly behind `ChatRepository`; its message history is in memory and is not an offline cache.
+- v1 identifies a sender by the locally entered display name to preserve compatibility with the existing table. This is a temporary v1 rule, not authenticated identity. The target `sender_id` UUID model in section 6 supersedes it during the authentication migration.
+- v1 UI variants are build-time flags. Runtime remote A/B rollout requires a remote `FeatureFlagProvider` implementation and analytics; it shall not be simulated with local preferences or presented as a production experiment platform.
+- Room, outbox retry, authentication, push notifications, and media behavior described below remain requirements for later milestones rather than claims about v1 functionality.
 
 ## 3. Configuration and Secrets
 
@@ -329,6 +356,11 @@ Remote delivery and read states shall be stored independently from local outgoin
 
 Unit tests shall cover:
 
+- ViewModel input validation, send success/failure, name persistence, and domain-to-UI mapping using fake repositories.
+- Timestamp parsing, local-time formatting, and malformed backend input.
+- UI variant independence: both variants shall be renderable with the same fake `ChatUiState` without repository initialization.
+- Compose event emission and enabled/disabled actions using fake state.
+- Screenshot regression tests shall be added when a screenshot-test runner is adopted; design-system changes shall then be reviewed against golden images in CI.
 - Mapping remote and local message states to check-mark presentation.
 - Outbox idempotency and retry transitions.
 - Unread-message selection and separator behavior.
