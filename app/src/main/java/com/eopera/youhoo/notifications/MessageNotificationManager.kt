@@ -35,7 +35,13 @@ class MessageNotificationManager @Inject constructor(
             .createNotificationChannel(channel)
     }
 
-    fun showMessage(messageId: String, sender: String, text: String) {
+    fun showMessage(
+        messageId: String,
+        sender: String,
+        text: String,
+        unreadCount: Int = 1,
+        firstUnreadMessageId: String? = null
+    ) {
         createChannel()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(
@@ -48,7 +54,7 @@ class MessageNotificationManager @Inject constructor(
 
         val intent = Intent(context, MainActivity::class.java).apply {
             action = ACTION_OPEN_MESSAGE
-            putExtra(EXTRA_MESSAGE_ID, messageId)
+            putExtra(EXTRA_MESSAGE_ID, firstUnreadMessageId ?: messageId)
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val contentIntent = PendingIntent.getActivity(
@@ -67,6 +73,9 @@ class MessageNotificationManager @Inject constructor(
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .apply {
+                if (unreadCount > 1) setNumber(unreadCount)
+            }
             .build()
         NotificationManagerCompat.from(context).notify(
             NOTIFICATION_TAG,

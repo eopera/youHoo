@@ -2,6 +2,7 @@ package com.eopera.youhoo.feature.chat
 
 import com.eopera.youhoo.core.model.ConnectionStatus
 import com.eopera.youhoo.core.model.Message
+import com.eopera.youhoo.core.model.MessageDeliveryStatus
 import com.eopera.youhoo.domain.repository.ChatRepository
 import com.eopera.youhoo.domain.repository.UserProfileRepository
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +60,86 @@ class ChatViewModelTest {
         assertFalse(state.messages[1].isMine)
         assertEquals("Sam", state.senderName)
         assertEquals(2, state.messages.size)
+    }
+
+    @Test
+    fun `delivery timestamps map to outgoing check mark states`() = runTest {
+        profileRepository.setName("Sam")
+        chatRepository.mutableMessages.value = listOf(
+            Message(1, "Sent", "Sam", "2024-01-01T12:30:00+00:00"),
+            Message(
+                2,
+                "Delivered",
+                "Sam",
+                "2024-01-01T12:31:00+00:00",
+                deliveredAt = "2024-01-01T12:31:05+00:00"
+            ),
+            Message(
+                3,
+                "Read",
+                "Sam",
+                "2024-01-01T12:32:00+00:00",
+                deliveredAt = "2024-01-01T12:32:05+00:00",
+                readAt = "2024-01-01T12:32:10+00:00"
+            )
+        )
+        val viewModel = createViewModel()
+        collectState(viewModel)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                MessageDeliveryStatus.SENT,
+                MessageDeliveryStatus.DELIVERED,
+                MessageDeliveryStatus.READ
+            ),
+            viewModel.uiState.value.messages.map { it.deliveryStatus }
+        )
+    }
+
+    @Test
+    fun `opening chat anchors and marks unread incoming messages read`() = runTest {
+        chatRepository.mutableMessages.value = listOf(
+            Message(1, "First", "Alex", "2024-01-01T12:30:00+00:00"),
+            Message(2, "Second", "Alex", "2024-01-01T12:31:00+00:00"),
+            Message(
+                3,
+                "Mine",
+                "Sam",
+                "2024-01-01T12:32:00+00:00",
+                isFromCurrentDevice = true
+            )
+        )
+        val viewModel = createViewModel()
+        collectState(viewModel)
+        advanceUntilIdle()
+
+        viewModel.onEvent(ChatEvent.ChatOpened)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1L, 2L), chatRepository.readMarked.single())
+        assertEquals(1L, viewModel.uiState.value.unreadAnchorId)
+
+        viewModel.onEvent(ChatEvent.UnreadAnchorShown)
+        advanceUntilIdle()
+        assertEquals(null, viewModel.uiState.value.unreadAnchorId)
+    }
+
+    @Test
+    fun `push message id overrides the first unread anchor`() = runTest {
+        chatRepository.mutableMessages.value = listOf(
+            Message(1, "First", "Alex", "2024-01-01T12:30:00+00:00"),
+            Message(2, "Second", "Alex", "2024-01-01T12:31:00+00:00")
+        )
+        val viewModel = createViewModel()
+        collectState(viewModel)
+        viewModel.onEvent(ChatEvent.ChatOpened)
+        advanceUntilIdle()
+
+        viewModel.onEvent(ChatEvent.OpenUnreadMessage(2))
+        advanceUntilIdle()
+
+        assertEquals(2L, viewModel.uiState.value.unreadAnchorId)
     }
 
     @Test
@@ -135,6 +216,8 @@ private class FakeChatRepository : ChatRepository {
     val mutableMessages = MutableStateFlow<List<Message>>(emptyList())
     private val mutableStatus = MutableStateFlow(ConnectionStatus.CONNECTED)
     val sent = mutableListOf<Pair<String, String>>()
+    val deliveredMarked = mutableListOf<List<Long>>()
+    val readMarked = mutableListOf<List<Long>>()
     var sendResult: Result<Unit> = Result.success(Unit)
 
     override val messages: StateFlow<List<Message>> = mutableMessages.asStateFlow()
@@ -146,6 +229,16 @@ private class FakeChatRepository : ChatRepository {
         sent += text to sender
         if (sendResult.isFailure) mutableStatus.value = ConnectionStatus.SEND_ERROR
         return sendResult
+    }
+
+    override suspend fun markMessagesDelivered(messageIds: List<Long>): Result<Unit> {
+        deliveredMarked += messageIds
+        return Result.success(Unit)
+    }
+
+    override suspend fun markMessagesRead(messageIds: List<Long>): Result<Unit> {
+        readMarked += messageIds
+        return Result.success(Unit)
     }
 }
 

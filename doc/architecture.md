@@ -168,7 +168,7 @@ UserProfileRepository <------------------- ChatViewModel
 
 `MainActivity` does not start realtime work. `AppViewModel` treats a persisted non-blank display name as a completed local v1 registration. `RegistrationViewModel` and `ProfileViewModel` validate, trim, length-limit, and persist the same name, so message ownership and sending immediately use the edited value. This is not Supabase Auth and does not create an account, authenticate a user, or provide cross-device profile synchronization.
 
-`ChatViewModel` owns one connection job in `viewModelScope`, so configuration changes do not duplicate subscriptions. Repository errors become typed states; exception details remain in logs. The v1 in-memory message list is intentionally not described as offline persistence. Room and the outbox remain target-architecture work.
+`ChatViewModel` owns one connection job in `viewModelScope`, so configuration changes do not duplicate subscriptions. Repository errors become typed states; exception details remain in logs. The v1 in-memory message list is intentionally not described as offline persistence. Incoming messages are acknowledged through monotonic delivery/read RPC while the chat screen is visible. Room and the outbox remain target-architecture work.
 
 ## 5. Local Data and Source of Truth
 
@@ -294,7 +294,7 @@ The application stores object paths rather than permanent public URLs. Short-liv
 
 ### 7.5. Edge Functions and FCM
 
-The implemented v1 flow uses a PostgreSQL trigger on `messages` and the `send-message-push` Edge Function. The function validates the message ID against the authoritative table, reads registered device tokens through the service role, excludes the sender installation UUID, sends FCM v1 notification and data payloads, and removes unregistered tokens. Android registers and refreshes its token through `DevicePushRepository`; message content and FCM tokens are not logged.
+The implemented v1 flow uses a PostgreSQL trigger on `messages` and the `send-message-push` Edge Function. The function validates the message ID against the authoritative table, reads registered device tokens through the service role, excludes the sender installation UUID, calculates that recipient's unread count and first unread message ID, sends FCM v1 notification and data payloads, and removes unregistered tokens. Android registers and refreshes its token through `DevicePushRepository`; message content and FCM tokens are not logged.
 
 The function endpoint accepts database webhook requests without JWT verification, but accepts only IDs of existing messages. Authenticated recipient authorization and webhook authentication remain required before this v1 mechanism is treated as a production security boundary. Anonymous clients cannot select device tokens, although token updates are not yet tied to authenticated users.
 

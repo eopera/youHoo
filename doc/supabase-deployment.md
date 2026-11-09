@@ -101,7 +101,7 @@ supabase migration repair --status applied 20261108163512 --remote
 
 ## Push-уведомления через FCM
 
-Миграция `20261108210343_push_notifications.sql` добавляет `messages.sender_device_id`, таблицу `public.device_tokens` и PostgreSQL-триггер на новые сообщения. Миграция `20261108213746_register_device_token_rpc.sql` добавляет проверяемую security-definer RPC `register_device_token`; прямые anonymous insert/update в таблицу токенов после неё запрещены. Edge Function `send-message-push` проверяет сообщение по его ID, отправляет FCM v1 уведомления другим устройствам и удаляет недействительные токены. Токены недоступны анонимному чтению через PostgREST.
+Миграция `20261108210343_push_notifications.sql` добавляет `messages.sender_device_id`, таблицу `public.device_tokens` и PostgreSQL-триггер на новые сообщения. Миграция `20261108213746_register_device_token_rpc.sql` добавляет проверяемую security-definer RPC `register_device_token`; прямые anonymous insert/update в таблицу токенов после неё запрещены. Миграция `20261109213023_message_delivery_read_state.sql` добавляет shared `delivered_at/read_at` и монотонные RPC для receipt-переходов. Edge Function `send-message-push` проверяет сообщение по его ID, отправляет FCM v1 уведомления другим устройствам с unread count и первым непрочитанным ID, и удаляет недействительные токены. Токены недоступны анонимному чтению через PostgREST.
 
 ### Настройка Android
 

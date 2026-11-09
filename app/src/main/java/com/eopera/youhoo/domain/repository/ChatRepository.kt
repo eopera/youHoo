@@ -12,4 +12,8 @@ interface ChatRepository {
     suspend fun connect()
 
     suspend fun sendMessage(text: String, sender: String): Result<Unit>
+
+    suspend fun markMessagesDelivered(messageIds: List<Long>): Result<Unit>
+
+    suspend fun markMessagesRead(messageIds: List<Long>): Result<Unit>
 }

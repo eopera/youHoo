@@ -13,6 +13,8 @@ import com.eopera.youhoo.feature.registration.RegistrationRoute
 @Composable
 fun AppRoute(
     onRegistered: () -> Unit = {},
+    pendingMessageId: Long? = null,
+    onPendingMessageHandled: () -> Unit = {},
     viewModel: AppViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -28,7 +30,9 @@ fun AppRoute(
             onBack = { viewModel.onEvent(AppEvent.CloseProfile) }
         )
         else -> ChatRoute(
-            onOpenProfile = { viewModel.onEvent(AppEvent.OpenProfile) }
+            onOpenProfile = { viewModel.onEvent(AppEvent.OpenProfile) },
+            pendingMessageId = pendingMessageId,
+            onPendingMessageHandled = onPendingMessageHandled
         )
     }
 }
