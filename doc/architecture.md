@@ -298,7 +298,7 @@ The implemented v1 flow uses a PostgreSQL trigger on `messages` and the `send-me
 
 The function endpoint accepts database webhook requests without JWT verification, but accepts only IDs of existing messages. Authenticated recipient authorization and webhook authentication remain required before this v1 mechanism is treated as a production security boundary. Anonymous clients cannot select device tokens, although token updates are not yet tied to authenticated users.
 
-Android uses the `family_messages` high-importance channel with private lock-screen visibility. Foreground FCM messages are rendered by `MessageNotificationManager`; background notification payloads use the same channel. The notification opens `MainActivity` on the chat. Missing Firebase client configuration disables registration without affecting chat.
+Android uses the `family_messages` high-importance channel with private lock-screen visibility. Foreground FCM messages are rendered by `MessageNotificationManager`; background notification payloads use the same channel. Both paths use the stable `family_messages` notification tag, so a new message replaces the existing chat notification instead of adding another card. The notification opens `MainActivity` on the chat. Missing Firebase client configuration disables registration without affecting chat.
 
 The client must still fetch authoritative message data from Supabase. FCM payloads are not treated as proof that a message was delivered to Room. Room, durable reconciliation, and authenticated recipient routing remain target-architecture work.
 

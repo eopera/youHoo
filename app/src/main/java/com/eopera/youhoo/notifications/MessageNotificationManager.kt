@@ -53,7 +53,7 @@ class MessageNotificationManager @Inject constructor(
         }
         val contentIntent = PendingIntent.getActivity(
             context,
-            messageId.hashCode(),
+            NOTIFICATION_ID,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -68,11 +68,17 @@ class MessageNotificationManager @Inject constructor(
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .build()
-        NotificationManagerCompat.from(context).notify(messageId.hashCode(), notification)
+        NotificationManagerCompat.from(context).notify(
+            NOTIFICATION_TAG,
+            NOTIFICATION_ID,
+            notification
+        )
     }
 
     companion object {
         const val CHANNEL_ID = "family_messages"
+        const val NOTIFICATION_TAG = "family_messages"
+        const val NOTIFICATION_ID = 0
         const val ACTION_OPEN_MESSAGE = "com.eopera.youhoo.OPEN_MESSAGE"
         const val EXTRA_MESSAGE_ID = "message_id"
     }

@@ -9,7 +9,6 @@
     <string name="registration_description">Enter your name to start messaging your family.</string>
     <string name="registration_continue">Continue</string>
     <string name="profile_title">Profile</string>
-    <string name="profile_description">This name is shown to your family in messages.</string>
     <string name="profile_save">Save</string>
     <string name="back">Back</string>
     <string name="message_hint">Message</string>
@@ -19,7 +18,8 @@
     <string name="empty_chat">No messages yet. Start the conversation.</string>
     <string name="status_connecting">Connecting…</string>
     <string name="status_loading">Loading history…</string>
-    <string name="status_connected">Connected</string>
+    <string name="status_connected">Online</string>
+    <string name="status_offline">Offline</string>
     <string name="status_connection_error">Connection failed. Your draft is preserved.</string>
     <string name="status_send_error">Message was not sent. Check your connection and try again.</string>
 </resources>

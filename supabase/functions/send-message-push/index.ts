@@ -137,7 +137,7 @@ Deno.serve(async (request) => {
               },
               android: {
                 priority: "HIGH",
-                notification: { channel_id: "family_messages" },
+                notification: { channel_id: "family_messages", tag: "family_messages" },
               },
             },
           }),

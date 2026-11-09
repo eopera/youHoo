@@ -2,6 +2,7 @@ package com.eopera.youhoo
 
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.eopera.youhoo.feature.profile.ProfileEvent
@@ -29,7 +30,7 @@ class ProfileScreenTest {
         }
 
         composeRule.onNodeWithText("Save").assertIsEnabled().performClick()
-        composeRule.onNodeWithText("Back").performClick()
+        composeRule.onNodeWithContentDescription("Back").performClick()
 
         assertEquals(listOf(ProfileEvent.SaveName, ProfileEvent.Back), events)
     }

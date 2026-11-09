@@ -1,5 +1,6 @@
 package com.eopera.youhoo.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.eopera.youhoo.ui.theme.AppTheme
 import com.eopera.youhoo.ui.theme.YouHooTheme
 
@@ -23,7 +25,9 @@ fun MessageBubble(
     time: String,
     isMine: Boolean,
     modifier: Modifier = Modifier,
-    compact: Boolean = false
+    compact: Boolean = false,
+    isFirstInGroup: Boolean = true,
+    isLastInGroup: Boolean = true
 ) {
     val spacing = AppTheme.spacing
     val cornerRadius = if (compact) {
@@ -32,18 +36,41 @@ fun MessageBubble(
         AppTheme.dimensions.messageCornerRadius
     }
     val background = if (isMine) {
-        MaterialTheme.colorScheme.primaryContainer
+        MaterialTheme.colorScheme.primary
     } else {
-        MaterialTheme.colorScheme.surfaceVariant
+        MaterialTheme.colorScheme.surface
     }
+    val contentColor = if (isMine) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val shape = RoundedCornerShape(
+        topStart = cornerRadius,
+        topEnd = cornerRadius,
+        bottomStart = if (!isMine && isLastInGroup) spacing.extraSmall else cornerRadius,
+        bottomEnd = if (isMine && isLastInGroup) spacing.extraSmall else cornerRadius
+    )
 
-    Box(modifier = modifier.fillMaxWidth()) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(
+                top = if (isFirstInGroup) spacing.small else 1.dp,
+                bottom = if (isLastInGroup) spacing.small else 1.dp
+            )
+    ) {
         Surface(
             color = background,
-            shape = RoundedCornerShape(cornerRadius),
+            contentColor = contentColor,
+            shape = shape,
+            border = if (isMine) {
+                null
+            } else {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            },
             modifier = Modifier
                 .align(if (isMine) Alignment.CenterEnd else Alignment.CenterStart)
-                .padding(vertical = spacing.extraSmall)
                 .widthIn(max = AppTheme.dimensions.messageMaxWidth)
         ) {
             Column(
@@ -52,19 +79,26 @@ fun MessageBubble(
                     vertical = if (compact) spacing.extraSmall else spacing.small
                 )
             ) {
-                if (!isMine) {
+                if (!isMine && isFirstInGroup) {
                     Text(
                         text = senderName,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                Text(text = text, style = MaterialTheme.typography.bodyLarge)
-                if (time.isNotEmpty()) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = contentColor
+                )
+                if (time.isNotEmpty() && isLastInGroup) {
                     Text(
                         text = time,
                         style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.align(Alignment.End)
+                        color = contentColor.copy(alpha = 0.72f),
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 2.dp)
                     )
                 }
             }
