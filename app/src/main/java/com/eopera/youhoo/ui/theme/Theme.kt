@@ -14,13 +14,21 @@ import androidx.compose.ui.platform.LocalContext
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
     secondary = PurpleGrey80,
-    tertiary = Pink80
+    tertiary = Pink80,
+    background = ChatBackgroundDark,
+    surface = ChatSurfaceDark,
+    surfaceVariant = ChatSurfaceVariantDark,
+    outlineVariant = ChatOutlineDark
 )
 
 private val LightColorScheme = lightColorScheme(
     primary = Purple40,
     secondary = PurpleGrey40,
-    tertiary = Pink40
+    tertiary = ConnectedGreen,
+    background = ChatBackgroundLight,
+    surface = ChatSurfaceLight,
+    surfaceVariant = ChatSurfaceVariantLight,
+    outlineVariant = ChatOutlineLight
 )
 
 @Composable

@@ -16,9 +16,9 @@ data class AppSpacing(
 
 @Immutable
 data class AppDimensions(
-    val messageMaxWidth: Dp = 280.dp,
-    val messageCornerRadius: Dp = 12.dp,
-    val compactMessageCornerRadius: Dp = 8.dp
+    val messageMaxWidth: Dp = 300.dp,
+    val messageCornerRadius: Dp = 18.dp,
+    val compactMessageCornerRadius: Dp = 14.dp
 )
 
 val LocalAppSpacing = staticCompositionLocalOf { AppSpacing() }

@@ -5,19 +5,21 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import androidx.core.app.NotificationManagerCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.eopera.youhoo.notifications.MessageNotificationManager
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MessageNotificationManagerTest {
     @Test
-    fun messageIsPostedToFamilyChannel() {
+    fun messagesReplaceSingleFamilyNotification() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(
@@ -26,16 +28,40 @@ class MessageNotificationManagerTest {
             )
         }
         val manager = MessageNotificationManager(context)
-        val messageId = "instrumented-test-message"
-        manager.showMessage(messageId, "Alex", "Hello family")
+        manager.showMessage("instrumented-test-1", "Alex", "Hello family")
+        manager.showMessage("instrumented-test-2", "Sam", "On my way")
 
         val systemManager = context.getSystemService(NotificationManager::class.java)
-        val notification = systemManager.activeNotifications.firstOrNull {
-            it.notification.channelId == MessageNotificationManager.CHANNEL_ID &&
-                it.notification.extras.getString(Notification.EXTRA_TITLE) == "Alex"
+        var notifications = systemManager.activeNotifications.filter {
+            it.tag == MessageNotificationManager.NOTIFICATION_TAG &&
+                it.id == MessageNotificationManager.NOTIFICATION_ID
         }
+        var latestTitle = notifications.singleOrNull()?.notification?.extras?.getString(
+            Notification.EXTRA_TITLE
+        )
+        val deadline = SystemClock.uptimeMillis() + 5_000
+        while (latestTitle != "Sam" && SystemClock.uptimeMillis() < deadline) {
+            SystemClock.sleep(100)
+            notifications = systemManager.activeNotifications.filter {
+                it.tag == MessageNotificationManager.NOTIFICATION_TAG &&
+                    it.id == MessageNotificationManager.NOTIFICATION_ID
+            }
+            latestTitle = notifications.singleOrNull()?.notification?.extras?.getString(
+                Notification.EXTRA_TITLE
+            )
+        }
+        val notification = notifications.singleOrNull()
 
-        assertTrue(notification != null)
-        NotificationManagerCompat.from(context).cancel(messageId.hashCode())
+        assertEquals(1, notifications.size)
+        assertNotNull(notification)
+        assertEquals("Sam", latestTitle)
+        assertEquals(
+            MessageNotificationManager.CHANNEL_ID,
+            notification?.notification?.channelId
+        )
+        NotificationManagerCompat.from(context).cancel(
+            MessageNotificationManager.NOTIFICATION_TAG,
+            MessageNotificationManager.NOTIFICATION_ID
+        )
     }
 }

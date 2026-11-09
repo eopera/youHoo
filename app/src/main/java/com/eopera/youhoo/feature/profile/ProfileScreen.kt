@@ -13,9 +13,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eopera.youhoo.R
+import com.eopera.youhoo.ui.components.AppBackIcon
 import com.eopera.youhoo.ui.components.AppButton
+import com.eopera.youhoo.ui.components.AppIconButton
 import com.eopera.youhoo.ui.components.AppScaffold
-import com.eopera.youhoo.ui.components.AppText
 import com.eopera.youhoo.ui.components.AppTextField
 import com.eopera.youhoo.ui.theme.AppTheme
 import com.eopera.youhoo.ui.theme.YouHooTheme
@@ -45,8 +46,9 @@ fun ProfileScreen(
         title = stringResource(R.string.profile_title),
         modifier = modifier,
         navigationIcon = {
-            AppButton(
-                text = stringResource(R.string.back),
+            AppIconButton(
+                icon = AppBackIcon,
+                contentDescription = stringResource(R.string.back),
                 onClick = { onEvent(ProfileEvent.Back) }
             )
         }
@@ -58,7 +60,6 @@ fun ProfileScreen(
                 .padding(padding)
                 .padding(spacing.large)
         ) {
-            AppText(text = stringResource(R.string.profile_description))
             AppTextField(
                 value = state.name,
                 onValueChange = { onEvent(ProfileEvent.NameChanged(it)) },
