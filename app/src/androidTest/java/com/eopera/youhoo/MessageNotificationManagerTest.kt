@@ -29,7 +29,13 @@ class MessageNotificationManagerTest {
         }
         val manager = MessageNotificationManager(context)
         manager.showMessage("instrumented-test-1", "Alex", "Hello family")
-        manager.showMessage("instrumented-test-2", "Sam", "On my way")
+        manager.showMessage(
+            messageId = "instrumented-test-2",
+            sender = "Sam",
+            text = "On my way",
+            unreadCount = 3,
+            firstUnreadMessageId = "instrumented-test-1"
+        )
 
         val systemManager = context.getSystemService(NotificationManager::class.java)
         var notifications = systemManager.activeNotifications.filter {
@@ -59,6 +65,7 @@ class MessageNotificationManagerTest {
             MessageNotificationManager.CHANNEL_ID,
             notification?.notification?.channelId
         )
+        assertEquals(3, notification?.notification?.number)
         NotificationManagerCompat.from(context).cancel(
             MessageNotificationManager.NOTIFICATION_TAG,
             MessageNotificationManager.NOTIFICATION_ID

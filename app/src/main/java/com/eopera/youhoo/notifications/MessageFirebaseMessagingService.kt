@@ -1,5 +1,6 @@
 package com.eopera.youhoo.notifications
 
+import com.eopera.youhoo.domain.repository.ChatRepository
 import com.eopera.youhoo.domain.repository.DevicePushRepository
 import com.eopera.youhoo.domain.repository.UserProfileRepository
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -17,6 +18,7 @@ class MessageFirebaseMessagingService : FirebaseMessagingService() {
     @Inject lateinit var devicePushRepository: DevicePushRepository
     @Inject lateinit var userProfileRepository: UserProfileRepository
     @Inject lateinit var messageNotificationManager: MessageNotificationManager
+    @Inject lateinit var chatRepository: ChatRepository
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -35,10 +37,19 @@ class MessageFirebaseMessagingService : FirebaseMessagingService() {
         if (sender == userProfileRepository.senderName.value.trim()) return
         val text = message.data["text"] ?: message.notification?.body.orEmpty()
         val messageId = message.data["message_id"] ?: message.messageId ?: return
+        val unreadCount = message.data["unread_count"]?.toIntOrNull() ?: 1
+        val firstUnreadMessageId = message.data["first_unread_message_id"]
+        messageId.toLongOrNull()?.let { id ->
+            serviceScope.launch {
+                chatRepository.markMessagesDelivered(listOf(id))
+            }
+        }
         messageNotificationManager.showMessage(
             messageId = messageId,
             sender = sender,
-            text = text
+            text = text,
+            unreadCount = unreadCount,
+            firstUnreadMessageId = firstUnreadMessageId
         )
     }
 

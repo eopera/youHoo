@@ -33,6 +33,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.eopera.youhoo.R
 import com.eopera.youhoo.core.model.ConnectionStatus
+import com.eopera.youhoo.core.model.MessageDeliveryStatus
 import com.eopera.youhoo.ui.components.AppButton
 import com.eopera.youhoo.ui.components.AppIconButton
 import com.eopera.youhoo.ui.components.AppProfileIcon
@@ -64,9 +65,18 @@ internal fun ChatContent(
     var hasInitialScroll by remember { mutableStateOf(false) }
     val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
 
-    LaunchedEffect(state.messages.size) {
+    LaunchedEffect(state.messages.size, state.unreadAnchorId) {
         val lastIndex = state.messages.lastIndex
         if (lastIndex < 0) return@LaunchedEffect
+
+        val anchorId = state.unreadAnchorId
+        if (!hasInitialScroll && anchorId != null) {
+            val anchorIndex = state.messages.indexOfFirst { it.id == anchorId }
+            listState.scrollToItem(anchorIndex.coerceAtLeast(0))
+            hasInitialScroll = true
+            onEvent(ChatEvent.UnreadAnchorShown)
+            return@LaunchedEffect
+        }
 
         val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
         val isNearLatest = lastVisibleIndex >= lastIndex - 2
@@ -160,6 +170,7 @@ internal fun ChatContent(
                             senderName = message.senderName,
                             time = message.time,
                             isMine = message.isMine,
+                            deliveryStatus = message.deliveryStatus,
                             compact = compact,
                             isFirstInGroup = previous == null ||
                                 previous.senderName != message.senderName ||
@@ -247,7 +258,14 @@ internal val previewChatState = ChatUiState(
     messages = listOf(
         MessageUi(1, "Dinner is ready", "Alex", "18:30", isMine = false),
         MessageUi(2, "I made your favorite pasta", "Alex", "18:30", isMine = false),
-        MessageUi(3, "On my way", "Sam", "18:31", isMine = true)
+        MessageUi(
+            3,
+            "On my way",
+            "Sam",
+            "18:31",
+            isMine = true,
+            deliveryStatus = MessageDeliveryStatus.READ
+        )
     ),
     senderName = "Sam",
     input = "See you soon",

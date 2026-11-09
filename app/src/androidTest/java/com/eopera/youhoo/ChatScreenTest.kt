@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.eopera.youhoo.core.model.ConnectionStatus
+import com.eopera.youhoo.core.model.MessageDeliveryStatus
 import com.eopera.youhoo.feature.chat.ChatEvent
 import com.eopera.youhoo.feature.chat.ChatScreen
 import com.eopera.youhoo.feature.chat.ChatUiState
@@ -56,6 +57,58 @@ class ChatScreenTest {
         composeRule.onNodeWithContentDescription("Profile").performClick()
 
         assertEquals(listOf<ChatEvent>(ChatEvent.OpenProfile), events)
+    }
+
+    @Test
+    fun outgoingReadMessageShowsDoubleCheck() {
+        composeRule.setContent {
+            YouHooTheme {
+                ChatScreen(
+                    state = state.copy(
+                        messages = listOf(
+                            MessageUi(
+                                1,
+                                "On my way",
+                                "Sam",
+                                "12:31",
+                                isMine = true,
+                                deliveryStatus = MessageDeliveryStatus.READ
+                            )
+                        )
+                    ),
+                    onEvent = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Read").assertIsDisplayed()
+    }
+
+    @Test
+    fun unreadAnchorScrollsToRequestedMessage() {
+        val events = mutableListOf<ChatEvent>()
+        val messages = (1..30).map { id ->
+            MessageUi(
+                id.toLong(),
+                "Message $id",
+                "Alex",
+                "12:30",
+                isMine = false
+            )
+        }
+        composeRule.setContent {
+            YouHooTheme {
+                ChatScreen(
+                    state = state.copy(messages = messages, unreadAnchorId = 12),
+                    onEvent = events::add
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Message 12").assertIsDisplayed()
+        assertEquals(listOf<ChatEvent>(ChatEvent.UnreadAnchorShown), events)
     }
 
     @Test

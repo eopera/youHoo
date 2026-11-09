@@ -12,6 +12,10 @@ type DeviceToken = {
   fcm_token: string;
 };
 
+type UnreadMessage = {
+  id: number;
+};
+
 type ServiceAccount = {
   client_email: string;
   private_key: string;
@@ -118,6 +122,17 @@ Deno.serve(async (request) => {
     let removed = 0;
 
     for (const device of recipients) {
+      const { data: unreadMessages, error: unreadError } = await supabase
+        .from("messages")
+        .select("id")
+        .neq("sender_device_id", device.device_id)
+        .is("read_at", null)
+        .order("id", { ascending: true });
+      if (unreadError) throw unreadError;
+      const unread = (unreadMessages as UnreadMessage[] | null) ?? [];
+      const unreadCount = unread.length;
+      const firstUnreadMessageId = unread[0]?.id ?? message.id;
+
       const response = await fetch(
         `https://fcm.googleapis.com/v1/projects/${account.project_id}/messages:send`,
         {
@@ -132,12 +147,18 @@ Deno.serve(async (request) => {
               notification: { title: message.sender, body: text },
               data: {
                 message_id: String(message.id),
+                first_unread_message_id: String(firstUnreadMessageId),
+                unread_count: String(unreadCount),
                 sender: message.sender,
                 text,
               },
               android: {
                 priority: "HIGH",
-                notification: { channel_id: "family_messages", tag: "family_messages" },
+                notification: {
+                  channel_id: "family_messages",
+                  tag: "family_messages",
+                  notification_count: unreadCount,
+                },
               },
             },
           }),
