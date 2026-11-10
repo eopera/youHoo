@@ -17,14 +17,17 @@ import androidx.core.content.ContextCompat
 import com.eopera.youhoo.notifications.MessageNotificationManager
 import com.eopera.youhoo.ui.theme.YouHooTheme
 import dagger.hilt.android.AndroidEntryPoint
+import java.util.UUID
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    private var pendingMessageId by mutableStateOf<Long?>(null)
+    private var pendingMessageId by mutableStateOf<String?>(null)
+    private var pendingContactId by mutableStateOf<String?>(null)
+    private var pendingContactName by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        pendingMessageId = intentMessageId(intent)
+        readPendingDestination(intent)
         enableEdgeToEdge()
         setContent {
             val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -33,7 +36,9 @@ class MainActivity : ComponentActivity() {
             YouHooTheme {
                 AppRoute(
                     pendingMessageId = pendingMessageId,
-                    onPendingMessageHandled = { pendingMessageId = null },
+                    pendingContactId = pendingContactId,
+                    pendingContactName = pendingContactName,
+                    onPendingMessageHandled = ::clearPendingDestination,
                     onRegistered = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                             ContextCompat.checkSelfPermission(
@@ -54,10 +59,27 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        pendingMessageId = intentMessageId(intent)
+        readPendingDestination(intent)
     }
 
-    private fun intentMessageId(intent: Intent?): Long? = intent
-        ?.getStringExtra(MessageNotificationManager.EXTRA_MESSAGE_ID)
-        ?.toLongOrNull()
+    private fun readPendingDestination(intent: Intent?) {
+        pendingMessageId = intent
+            ?.getStringExtra(MessageNotificationManager.EXTRA_MESSAGE_ID)
+            ?.let(::parseUuid)
+        pendingContactId = intent
+            ?.getStringExtra(MessageNotificationManager.EXTRA_SENDER_ID)
+            ?.let(::parseUuid)
+        pendingContactName = intent
+            ?.getStringExtra(MessageNotificationManager.EXTRA_SENDER_NAME)
+    }
+
+    private fun clearPendingDestination() {
+        pendingMessageId = null
+        pendingContactId = null
+        pendingContactName = null
+    }
+
+    private fun parseUuid(value: String): String? = runCatching {
+        UUID.fromString(value).toString()
+    }.getOrNull()
 }

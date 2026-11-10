@@ -17,18 +17,25 @@ class SharedPreferencesUserProfileRepository @Inject constructor(
         PREFERENCES_NAME,
         Context.MODE_PRIVATE
     )
+    private val _userId = MutableStateFlow(preferences.getString(KEY_USER_ID, null))
+    override val userId: StateFlow<String?> = _userId.asStateFlow()
     private val _senderName = MutableStateFlow(
         preferences.getString(KEY_SENDER, "").orEmpty()
     )
     override val senderName: StateFlow<String> = _senderName.asStateFlow()
 
-    override fun updateSenderName(name: String) {
+    override fun updateProfile(userId: String, name: String) {
+        _userId.value = userId
         _senderName.value = name
-        preferences.edit().putString(KEY_SENDER, name).apply()
+        preferences.edit()
+            .putString(KEY_USER_ID, userId)
+            .putString(KEY_SENDER, name)
+            .apply()
     }
 
     private companion object {
         const val PREFERENCES_NAME = "chat_prefs"
+        const val KEY_USER_ID = "user_id"
         const val KEY_SENDER = "sender"
     }
 }

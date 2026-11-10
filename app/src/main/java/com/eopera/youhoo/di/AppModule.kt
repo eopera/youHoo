@@ -3,8 +3,12 @@ package com.eopera.youhoo.di
 import com.eopera.youhoo.BuildConfig
 import com.eopera.youhoo.data.local.SharedPreferencesUserProfileRepository
 import com.eopera.youhoo.data.repository.FirebaseDevicePushRepository
+import com.eopera.youhoo.data.repository.SupabaseAccountRepository
 import com.eopera.youhoo.data.repository.SupabaseChatRepository
+import com.eopera.youhoo.data.repository.SupabaseContactRepository
+import com.eopera.youhoo.domain.repository.AccountRepository
 import com.eopera.youhoo.domain.repository.ChatRepository
+import com.eopera.youhoo.domain.repository.ContactRepository
 import com.eopera.youhoo.domain.repository.DevicePushRepository
 import com.eopera.youhoo.domain.repository.UserProfileRepository
 import com.eopera.youhoo.feature.chat.BuildConfigFeatureFlagProvider
@@ -50,6 +54,18 @@ object AppModule {
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+    @Binds
+    @Singleton
+    abstract fun bindAccountRepository(
+        implementation: SupabaseAccountRepository
+    ): AccountRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindContactRepository(
+        implementation: SupabaseContactRepository
+    ): ContactRepository
+
     @Binds
     @Singleton
     abstract fun bindChatRepository(

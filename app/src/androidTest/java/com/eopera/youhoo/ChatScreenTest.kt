@@ -26,10 +26,11 @@ class ChatScreenTest {
 
     private val state = ChatUiState(
         messages = listOf(
-            MessageUi(1, "Hello family", "Alex", "12:30", isMine = false),
-            MessageUi(2, "On my way", "Sam", "12:31", isMine = true)
+            MessageUi("1", "Hello", "Alex", "12:30", isMine = false),
+            MessageUi("2", "On my way", "Sam", "12:31", isMine = true)
         ),
         senderName = "Sam",
+        contactName = "Alex",
         input = "Draft",
         connectionStatus = ConnectionStatus.CONNECTED,
         canSend = true
@@ -60,6 +61,18 @@ class ChatScreenTest {
     }
 
     @Test
+    fun backActionEmitsNavigationEvent() {
+        val events = mutableListOf<ChatEvent>()
+        composeRule.setContent {
+            YouHooTheme { ChatScreen(state, events::add) }
+        }
+
+        composeRule.onNodeWithContentDescription("Back").performClick()
+
+        assertEquals(listOf<ChatEvent>(ChatEvent.Back), events)
+    }
+
+    @Test
     fun outgoingReadMessageShowsDoubleCheck() {
         composeRule.setContent {
             YouHooTheme {
@@ -67,7 +80,7 @@ class ChatScreenTest {
                     state = state.copy(
                         messages = listOf(
                             MessageUi(
-                                1,
+                                "1",
                                 "On my way",
                                 "Sam",
                                 "12:31",
@@ -89,7 +102,7 @@ class ChatScreenTest {
         val events = mutableListOf<ChatEvent>()
         val messages = (1..30).map { id ->
             MessageUi(
-                id.toLong(),
+                id.toString(),
                 "Message $id",
                 "Alex",
                 "12:30",
@@ -99,7 +112,7 @@ class ChatScreenTest {
         composeRule.setContent {
             YouHooTheme {
                 ChatScreen(
-                    state = state.copy(messages = messages, unreadAnchorId = 12),
+                    state = state.copy(messages = messages, unreadAnchorId = "12"),
                     onEvent = events::add
                 )
             }
@@ -118,9 +131,9 @@ class ChatScreenTest {
                 ChatScreen(
                     state = state.copy(
                         messages = listOf(
-                            MessageUi(1, "Hello family", "Alex", "12:30", isMine = false),
-                            MessageUi(2, "How are you?", "Alex", "12:31", isMine = false),
-                            MessageUi(3, "On my way", "Sam", "12:32", isMine = true)
+                            MessageUi("1", "Hello", "Alex", "12:30", isMine = false),
+                            MessageUi("2", "How are you?", "Alex", "12:31", isMine = false),
+                            MessageUi("3", "On my way", "Sam", "12:32", isMine = true)
                         )
                     ),
                     onEvent = {}
@@ -128,7 +141,7 @@ class ChatScreenTest {
             }
         }
 
-        composeRule.onAllNodesWithText("Alex").assertCountEquals(1)
+        composeRule.onAllNodesWithText("Alex").assertCountEquals(2)
         composeRule.onAllNodesWithText("12:30").assertCountEquals(0)
         composeRule.onNodeWithText("12:31").assertIsDisplayed()
         composeRule.onNodeWithText("12:32").assertIsDisplayed()
@@ -140,7 +153,7 @@ class ChatScreenTest {
             YouHooTheme { CompactChatScreen(state, onEvent = {}) }
         }
 
-        composeRule.onNodeWithText("Hello family").assertIsDisplayed()
+        composeRule.onNodeWithText("Hello").assertIsDisplayed()
         composeRule.onNodeWithText("On my way").assertIsDisplayed()
     }
 }

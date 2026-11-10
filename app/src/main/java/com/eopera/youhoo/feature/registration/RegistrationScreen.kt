@@ -50,8 +50,17 @@ fun RegistrationScreen(
                 label = stringResource(R.string.your_name),
                 modifier = Modifier.fillMaxWidth()
             )
+            if (state.showError) {
+                AppText(
+                    text = stringResource(R.string.registration_error),
+                    isError = true
+                )
+            }
             AppButton(
-                text = stringResource(R.string.registration_continue),
+                text = stringResource(
+                    if (state.isRegistering) R.string.registration_registering
+                    else R.string.registration_continue
+                ),
                 onClick = { onEvent(RegistrationEvent.Register) },
                 enabled = state.canRegister,
                 modifier = Modifier.fillMaxWidth()

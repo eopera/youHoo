@@ -2,14 +2,19 @@ package com.eopera.youhoo.core.model
 
 /** Vendor-independent message used by repositories and the presentation layer. */
 data class Message(
-    val id: Long,
+    val id: String,
     val text: String,
     val sender: String,
     val createdAt: String,
+    val conversationId: String = "",
+    val parentId: String? = null,
+    val senderId: String? = null,
     val senderDeviceId: String? = null,
     val deliveredAt: String? = null,
     val readAt: String? = null,
-    val isFromCurrentDevice: Boolean = false
+    val deletedAt: String? = null,
+    val isFromCurrentDevice: Boolean = false,
+    val isFromCurrentUser: Boolean = false
 ) {
     val deliveryStatus: MessageDeliveryStatus
         get() = when {

@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.eopera.youhoo.R
 import com.eopera.youhoo.core.model.ConnectionStatus
 import com.eopera.youhoo.core.model.MessageDeliveryStatus
+import com.eopera.youhoo.ui.components.AppBackIcon
 import com.eopera.youhoo.ui.components.AppButton
 import com.eopera.youhoo.ui.components.AppIconButton
 import com.eopera.youhoo.ui.components.AppProfileIcon
@@ -65,7 +66,7 @@ internal fun ChatContent(
     var hasInitialScroll by remember { mutableStateOf(false) }
     val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
 
-    LaunchedEffect(state.messages.size, state.unreadAnchorId) {
+    LaunchedEffect(state.messages.lastOrNull()?.id, state.unreadAnchorId) {
         val lastIndex = state.messages.lastIndex
         if (lastIndex < 0) return@LaunchedEffect
 
@@ -86,6 +87,19 @@ internal fun ChatContent(
         }
     }
 
+    LaunchedEffect(
+        listState.firstVisibleItemIndex,
+        hasInitialScroll,
+        state.hasOlderMessages,
+        state.isLoadingOlder
+    ) {
+        if (hasInitialScroll && listState.firstVisibleItemIndex == 0 &&
+            state.hasOlderMessages && !state.isLoadingOlder
+        ) {
+            onEvent(ChatEvent.LoadOlderMessages)
+        }
+    }
+
     LaunchedEffect(imeBottom) {
         if (imeBottom > 0 && state.messages.isNotEmpty()) {
             listState.animateScrollToItem(state.messages.lastIndex)
@@ -93,8 +107,15 @@ internal fun ChatContent(
     }
 
     AppScaffold(
-        title = stringResource(R.string.chat_title),
+        title = state.contactName.ifBlank { stringResource(R.string.chat_title) },
         modifier = modifier,
+        navigationIcon = {
+            AppIconButton(
+                icon = AppBackIcon,
+                contentDescription = stringResource(R.string.back),
+                onClick = { onEvent(ChatEvent.Back) }
+            )
+        },
         subtitle = { ConnectionStatusLabel(state.connectionStatus) },
         actions = {
             AppIconButton(
@@ -256,10 +277,10 @@ private fun ChatErrorPreview() {
 
 internal val previewChatState = ChatUiState(
     messages = listOf(
-        MessageUi(1, "Dinner is ready", "Alex", "18:30", isMine = false),
-        MessageUi(2, "I made your favorite pasta", "Alex", "18:30", isMine = false),
+        MessageUi("1", "Dinner is ready", "Alex", "18:30", isMine = false),
+        MessageUi("2", "I made your favorite pasta", "Alex", "18:30", isMine = false),
         MessageUi(
-            3,
+            "3",
             "On my way",
             "Sam",
             "18:31",
@@ -268,6 +289,7 @@ internal val previewChatState = ChatUiState(
         )
     ),
     senderName = "Sam",
+    contactName = "Alex",
     input = "See you soon",
     connectionStatus = ConnectionStatus.CONNECTED,
     canSend = true

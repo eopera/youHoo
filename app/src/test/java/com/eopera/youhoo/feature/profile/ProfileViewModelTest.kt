@@ -1,5 +1,6 @@
 package com.eopera.youhoo.feature.profile
 
+import com.eopera.youhoo.domain.repository.AccountRepository
 import com.eopera.youhoo.domain.repository.UserProfileRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,11 +26,13 @@ import org.junit.Test
 class ProfileViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private lateinit var profileRepository: FakeProfileRepository
+    private lateinit var accountRepository: FakeProfileAccountRepository
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         profileRepository = FakeProfileRepository("Sam")
+        accountRepository = FakeProfileAccountRepository(profileRepository)
     }
 
     @After
@@ -39,7 +42,7 @@ class ProfileViewModelTest {
 
     @Test
     fun `profile starts with saved name`() = runTest {
-        val viewModel = ProfileViewModel(profileRepository)
+        val viewModel = ProfileViewModel(accountRepository, profileRepository)
         collectState(viewModel)
         advanceUntilIdle()
 
@@ -48,8 +51,8 @@ class ProfileViewModelTest {
     }
 
     @Test
-    fun `changed name is trimmed and persisted`() = runTest {
-        val viewModel = ProfileViewModel(profileRepository)
+    fun `changed name is trimmed and persisted remotely`() = runTest {
+        val viewModel = ProfileViewModel(accountRepository, profileRepository)
         collectState(viewModel)
 
         viewModel.onEvent(ProfileEvent.NameChanged("  Alex  "))
@@ -59,13 +62,29 @@ class ProfileViewModelTest {
         viewModel.onEvent(ProfileEvent.SaveName)
         advanceUntilIdle()
         assertEquals("Alex", profileRepository.senderName.value)
+        assertEquals(listOf("Alex"), accountRepository.updatedNames)
         assertEquals("Alex", viewModel.uiState.value.name)
         assertFalse(viewModel.uiState.value.canSave)
     }
 
     @Test
+    fun `failed update preserves previous saved name`() = runTest {
+        accountRepository.result = Result.failure(IllegalStateException("offline"))
+        val viewModel = ProfileViewModel(accountRepository, profileRepository)
+        collectState(viewModel)
+
+        viewModel.onEvent(ProfileEvent.NameChanged("Alex"))
+        viewModel.onEvent(ProfileEvent.SaveName)
+        advanceUntilIdle()
+
+        assertEquals("Sam", profileRepository.senderName.value)
+        assertEquals("Alex", viewModel.uiState.value.name)
+        assertTrue(viewModel.uiState.value.showError)
+    }
+
+    @Test
     fun `blank name cannot replace saved name`() = runTest {
-        val viewModel = ProfileViewModel(profileRepository)
+        val viewModel = ProfileViewModel(accountRepository, profileRepository)
         collectState(viewModel)
 
         viewModel.onEvent(ProfileEvent.NameChanged("   "))
@@ -84,10 +103,28 @@ class ProfileViewModelTest {
 }
 
 private class FakeProfileRepository(initialName: String) : UserProfileRepository {
+    private val mutableUserId = MutableStateFlow<String?>("user-1")
     private val mutableName = MutableStateFlow(initialName)
+    override val userId: StateFlow<String?> = mutableUserId.asStateFlow()
     override val senderName: StateFlow<String> = mutableName.asStateFlow()
 
-    override fun updateSenderName(name: String) {
+    override fun updateProfile(userId: String, name: String) {
+        mutableUserId.value = userId
         mutableName.value = name
+    }
+}
+
+private class FakeProfileAccountRepository(
+    private val profileRepository: UserProfileRepository
+) : AccountRepository {
+    val updatedNames = mutableListOf<String>()
+    var result: Result<Unit> = Result.success(Unit)
+
+    override suspend fun register(displayName: String): Result<Unit> = updateDisplayName(displayName)
+
+    override suspend fun updateDisplayName(displayName: String): Result<Unit> {
+        updatedNames += displayName
+        if (result.isSuccess) profileRepository.updateProfile("user-1", displayName)
+        return result
     }
 }

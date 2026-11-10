@@ -1,5 +1,6 @@
 package com.eopera.youhoo.feature.registration
 
+import com.eopera.youhoo.domain.repository.AccountRepository
 import com.eopera.youhoo.domain.repository.UserProfileRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,11 +26,13 @@ import org.junit.Test
 class RegistrationViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private lateinit var profileRepository: FakeRegistrationProfileRepository
+    private lateinit var accountRepository: FakeRegistrationAccountRepository
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         profileRepository = FakeRegistrationProfileRepository()
+        accountRepository = FakeRegistrationAccountRepository(profileRepository)
     }
 
     @After
@@ -39,7 +42,7 @@ class RegistrationViewModelTest {
 
     @Test
     fun `blank name cannot register`() = runTest {
-        val viewModel = RegistrationViewModel(profileRepository)
+        val viewModel = RegistrationViewModel(accountRepository, profileRepository)
         collectState(viewModel)
 
         viewModel.onEvent(RegistrationEvent.NameChanged("   "))
@@ -48,11 +51,12 @@ class RegistrationViewModelTest {
 
         assertFalse(viewModel.uiState.value.canRegister)
         assertEquals("", profileRepository.senderName.value)
+        assertTrue(accountRepository.registeredNames.isEmpty())
     }
 
     @Test
-    fun `registration trims and persists name`() = runTest {
-        val viewModel = RegistrationViewModel(profileRepository)
+    fun `registration trims name and persists remote identity`() = runTest {
+        val viewModel = RegistrationViewModel(accountRepository, profileRepository)
         collectState(viewModel)
 
         viewModel.onEvent(RegistrationEvent.NameChanged("  Sam  "))
@@ -62,11 +66,28 @@ class RegistrationViewModelTest {
         viewModel.onEvent(RegistrationEvent.Register)
         advanceUntilIdle()
         assertEquals("Sam", profileRepository.senderName.value)
+        assertEquals("user-1", profileRepository.userId.value)
+        assertEquals(listOf("Sam"), accountRepository.registeredNames)
+    }
+
+    @Test
+    fun `failed remote registration does not persist local profile`() = runTest {
+        accountRepository.result = Result.failure(IllegalStateException("offline"))
+        val viewModel = RegistrationViewModel(accountRepository, profileRepository)
+        collectState(viewModel)
+
+        viewModel.onEvent(RegistrationEvent.NameChanged("Sam"))
+        viewModel.onEvent(RegistrationEvent.Register)
+        advanceUntilIdle()
+
+        assertEquals(null, profileRepository.userId.value)
+        assertTrue(viewModel.uiState.value.showError)
+        assertTrue(viewModel.uiState.value.canRegister)
     }
 
     @Test
     fun `name input is length limited`() = runTest {
-        val viewModel = RegistrationViewModel(profileRepository)
+        val viewModel = RegistrationViewModel(accountRepository, profileRepository)
         collectState(viewModel)
 
         viewModel.onEvent(RegistrationEvent.NameChanged("a".repeat(60)))
@@ -86,10 +107,28 @@ class RegistrationViewModelTest {
 }
 
 private class FakeRegistrationProfileRepository : UserProfileRepository {
+    private val mutableUserId = MutableStateFlow<String?>(null)
     private val mutableName = MutableStateFlow("")
+    override val userId: StateFlow<String?> = mutableUserId.asStateFlow()
     override val senderName: StateFlow<String> = mutableName.asStateFlow()
 
-    override fun updateSenderName(name: String) {
+    override fun updateProfile(userId: String, name: String) {
+        mutableUserId.value = userId
         mutableName.value = name
     }
+}
+
+private class FakeRegistrationAccountRepository(
+    private val profileRepository: UserProfileRepository
+) : AccountRepository {
+    val registeredNames = mutableListOf<String>()
+    var result: Result<Unit> = Result.success(Unit)
+
+    override suspend fun register(displayName: String): Result<Unit> {
+        registeredNames += displayName
+        if (result.isSuccess) profileRepository.updateProfile("user-1", displayName)
+        return result
+    }
+
+    override suspend fun updateDisplayName(displayName: String): Result<Unit> = register(displayName)
 }

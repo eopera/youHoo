@@ -1,5 +1,6 @@
 package com.eopera.youhoo
 
+import com.eopera.youhoo.core.model.Contact
 import com.eopera.youhoo.domain.repository.UserProfileRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -38,7 +39,8 @@ class AppViewModelTest {
     }
 
     @Test
-    fun `blank saved name requires registration`() = runTest {
+    fun `name without remote user id still requires registration`() = runTest {
+        profileRepository.updateProfile("", "Sam")
         val viewModel = AppViewModel(profileRepository)
         collectState(viewModel)
         advanceUntilIdle()
@@ -47,19 +49,38 @@ class AppViewModelTest {
     }
 
     @Test
-    fun `saved name opens chat without registration`() = runTest {
-        profileRepository.updateSenderName("Sam")
+    fun `registered user opens contact directory`() = runTest {
+        profileRepository.updateProfile("user-1", "Sam")
         val viewModel = AppViewModel(profileRepository)
         collectState(viewModel)
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.isRegistered)
-        assertEquals(AppSection.CHAT, viewModel.uiState.value.section)
+        assertEquals(AppSection.CONTACTS, viewModel.uiState.value.section)
     }
 
     @Test
-    fun `profile can be opened and closed`() = runTest {
-        profileRepository.updateSenderName("Sam")
+    fun `contact opens and closes personal chat`() = runTest {
+        profileRepository.updateProfile("user-1", "Sam")
+        val contact = Contact("user-2", "Alex")
+        val viewModel = AppViewModel(profileRepository)
+        collectState(viewModel)
+        advanceUntilIdle()
+
+        viewModel.onEvent(AppEvent.OpenChat(contact))
+        advanceUntilIdle()
+        assertEquals(AppSection.CHAT, viewModel.uiState.value.section)
+        assertEquals(contact, viewModel.uiState.value.selectedContact)
+
+        viewModel.onEvent(AppEvent.CloseChat)
+        advanceUntilIdle()
+        assertEquals(AppSection.CONTACTS, viewModel.uiState.value.section)
+        assertEquals(null, viewModel.uiState.value.selectedContact)
+    }
+
+    @Test
+    fun `profile returns to contact directory`() = runTest {
+        profileRepository.updateProfile("user-1", "Sam")
         val viewModel = AppViewModel(profileRepository)
         collectState(viewModel)
         advanceUntilIdle()
@@ -70,7 +91,7 @@ class AppViewModelTest {
 
         viewModel.onEvent(AppEvent.CloseProfile)
         advanceUntilIdle()
-        assertEquals(AppSection.CHAT, viewModel.uiState.value.section)
+        assertEquals(AppSection.CONTACTS, viewModel.uiState.value.section)
     }
 
     private fun TestScope.collectState(viewModel: AppViewModel) {
@@ -81,10 +102,13 @@ class AppViewModelTest {
 }
 
 private class FakeAppProfileRepository : UserProfileRepository {
+    private val mutableUserId = MutableStateFlow<String?>(null)
     private val mutableName = MutableStateFlow("")
+    override val userId: StateFlow<String?> = mutableUserId.asStateFlow()
     override val senderName: StateFlow<String> = mutableName.asStateFlow()
 
-    override fun updateSenderName(name: String) {
+    override fun updateProfile(userId: String, name: String) {
+        mutableUserId.value = userId.ifBlank { null }
         mutableName.value = name
     }
 }

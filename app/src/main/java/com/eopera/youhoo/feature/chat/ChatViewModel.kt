@@ -2,6 +2,7 @@ package com.eopera.youhoo.feature.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.eopera.youhoo.core.model.Contact
 import com.eopera.youhoo.core.model.Message
 import com.eopera.youhoo.domain.repository.ChatRepository
 import com.eopera.youhoo.domain.repository.DevicePushRepository
@@ -29,8 +30,11 @@ class ChatViewModel @Inject constructor(
     private val input = MutableStateFlow("")
     private val isSending = MutableStateFlow(false)
     private val isChatVisible = MutableStateFlow(false)
-    private val unreadAnchorId = MutableStateFlow<Long?>(null)
+    private val unreadAnchorId = MutableStateFlow<String?>(null)
+    private val contactName = MutableStateFlow("")
+    private val isLoadingOlder = MutableStateFlow(false)
     private var connectionJob: Job? = null
+    private var selectedContactId: String? = null
 
     private val baseUiState = combine(
         chatRepository.messages,
@@ -42,7 +46,9 @@ class ChatViewModel @Inject constructor(
         val trimmedSender = senderName.trim()
         ChatUiState(
             messages = messages.map { message ->
-                val isMine = trimmedSender.isNotEmpty() && message.sender == trimmedSender
+                val isMine = message.isFromCurrentUser ||
+                    (message.senderId == null && trimmedSender.isNotEmpty() &&
+                        message.sender == trimmedSender)
                 MessageUi(
                     id = message.id,
                     text = message.text,
@@ -69,8 +75,19 @@ class ChatViewModel @Inject constructor(
         initialValue = ChatUiState()
     )
 
-    val uiState = combine(baseUiState, unreadAnchorId) { state, anchorId ->
-        state.copy(unreadAnchorId = anchorId)
+    val uiState = combine(
+        baseUiState,
+        unreadAnchorId,
+        contactName,
+        isLoadingOlder,
+        chatRepository.hasOlderMessages
+    ) { state, anchorId, currentContactName, loadingOlder, hasOlder ->
+        state.copy(
+            unreadAnchorId = anchorId,
+            contactName = currentContactName,
+            isLoadingOlder = loadingOlder,
+            hasOlderMessages = hasOlder
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -87,23 +104,39 @@ class ChatViewModel @Inject constructor(
                 chatRepository.messages.collect(::markVisibleUnreadMessages)
             }
         }
-        connect()
     }
 
     fun onEvent(event: ChatEvent) {
         when (event) {
             is ChatEvent.InputChanged -> input.value = event.value
             ChatEvent.SendMessage -> sendMessage()
-            ChatEvent.RetryConnection -> connect()
+            ChatEvent.RetryConnection -> selectedContactId?.let(::connect)
+            ChatEvent.LoadOlderMessages -> loadOlderMessages()
             ChatEvent.OpenProfile -> Unit
-            ChatEvent.ChatOpened -> isChatVisible.value = true
+            ChatEvent.Back -> Unit
+            is ChatEvent.ConversationSelected -> selectConversation(event.contact)
+            ChatEvent.ChatOpened -> {
+                isChatVisible.value = true
+                if (connectionJob?.isActive != true) selectedContactId?.let(::connect)
+            }
             ChatEvent.ChatClosed -> {
                 isChatVisible.value = false
                 unreadAnchorId.value = null
+                connectionJob?.cancel()
             }
             ChatEvent.UnreadAnchorShown -> unreadAnchorId.value = null
             is ChatEvent.OpenUnreadMessage -> unreadAnchorId.value = event.messageId
         }
+    }
+
+    private fun selectConversation(contact: Contact) {
+        if (selectedContactId == contact.id && connectionJob?.isActive == true) return
+        connectionJob?.cancel()
+        selectedContactId = contact.id
+        contactName.value = contact.displayName
+        unreadAnchorId.value = null
+        input.value = ""
+        connect(contact.id)
     }
 
     private suspend fun markVisibleUnreadMessages(messages: List<Message>) {
@@ -116,10 +149,19 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun connect() {
-        if (connectionJob?.isActive == true) return
+    private fun connect(contactId: String) {
+        if (connectionJob?.isActive == true && selectedContactId == contactId) return
         connectionJob = viewModelScope.launch {
-            chatRepository.connect()
+            chatRepository.connect(contactId)
+        }
+    }
+
+    private fun loadOlderMessages() {
+        if (isLoadingOlder.value || !chatRepository.hasOlderMessages.value) return
+        viewModelScope.launch {
+            isLoadingOlder.value = true
+            chatRepository.loadOlderMessages()
+            isLoadingOlder.value = false
         }
     }
 
@@ -131,9 +173,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             isSending.value = true
             val result = chatRepository.sendMessage(text = text, sender = sender)
-            if (result.isSuccess) {
-                input.value = ""
-            }
+            if (result.isSuccess) input.value = ""
             isSending.value = false
         }
     }

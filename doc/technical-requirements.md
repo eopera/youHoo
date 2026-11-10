@@ -1,419 +1,196 @@
 # Technical Requirements
 
-**Status:** v1 presentation requirements implemented; core messenger requirements proposed  
-**Related documents:** [Business requirements](business-requirements.md), [Architecture](architecture.md)
+**Status:** all-user directory, personal conversations, UUID messages, and bounded pagination implemented locally; production authentication, offline persistence, and media remain proposed
+
+**Related documents:** [Business requirements](business-requirements.md), [Architecture](architecture.md), [Supabase deployment](supabase-deployment.md)
 
 ## 1. Scope
 
-This document defines the technical requirements for the core family messenger. The word **shall** identifies a mandatory requirement.
+The current increment changes the shared-family prototype into a directory of all registered users with personal conversations. Core target requirements still include persistent authentication, contacts and profiles, text and image messages, delivery/read state, unread navigation, deletion, offline access, durable outgoing synchronization, push notifications, and quick replies.
 
-The core scope includes authentication, persistent sessions, profiles, predefined family contacts, direct text and image messages, delivery and read states, unread navigation, local and global deletion, offline access, durable outgoing synchronization, push notifications, and predefined quick replies.
+Battery reporting, location requests, and shared lists remain future enhancements.
 
-Battery reporting, location requests, and shared family lists are future enhancements and are not part of this baseline.
+## 2. Platform and UI Baseline
 
-## 2. Platform and Project Baseline
+The existing Android baseline remains unchanged: Kotlin 2.2.10, AGP 9.5.1, API 24–37, Java 11, Jetpack Compose Material 3, Supabase Kotlin BOM 2.6.1, Ktor OkHttp, Hilt, `StateFlow`, and lifecycle-aware Compose collection. Dependencies remain in `gradle/libs.versions.toml`.
 
-The implementation shall use the existing Android project and preserve its current platform baseline unless a deliberate project-wide upgrade is approved.
+- Each screen shall accept immutable state and emit typed events.
+- Composables shall not call Supabase, Firebase, Room, preferences, or repositories directly.
+- ViewModels shall own feature jobs and map presentation-ready models.
+- Repository contracts shall be interfaces under `domain/repository`; implementations shall be constructor-injected and fakeable.
+- User-visible strings shall use resources; raw backend errors shall not reach the UI.
+- UI variants shall consume the same state/events and shall not change data behavior.
+- Lazy lists shall use stable UUID keys, respect insets and font scaling, and avoid pulling users away from older messages.
 
-| Item | Current baseline |
-|---|---|
-| Language | Kotlin 2.2.10 |
-| Android Gradle Plugin | 9.5.1 |
-| Minimum Android API | 24 |
-| Target and compile API | 37 |
-| Java compatibility | Java 11 |
-| UI | Jetpack Compose with Material 3 |
-| Compose BOM | 2026.02.01 |
-| Supabase Kotlin BOM | 2.6.1 |
-| Network engine | Ktor OkHttp client 2.3.11 |
-| Unit test framework | JUnit 4.13.2 and kotlinx-coroutines-test |
-| Dependency injection | Hilt with constructor injection |
-| State collection | Lifecycle-aware `collectAsStateWithLifecycle` |
-| Application ID | `com.eopera.youhoo` |
+## 3. Implemented Directory and Personal-Chat Contract
 
-The project already contains Supabase PostgREST and Realtime dependencies. Core implementation will additionally require the Supabase Auth and Storage modules, Room, WorkManager, Firebase Cloud Messaging, lifecycle-aware ViewModel support, and an image loading solution. Versions shall be managed consistently through the version catalog where applicable.
+### 3.1. Registration and Profile
 
-### 2.1. UI Architecture and Design-System Requirements
+- Registration shall call `register_user(device_id, display_name)` and persist both returned `users.id` and trimmed display name locally.
+- A locally saved name without a remote user ID shall not count as completed registration.
+- Blank names shall be rejected; names shall be limited to 50 characters.
+- Duplicate submissions shall be disabled while registration is running.
+- A failed remote registration shall preserve the draft, expose an error state, and not persist a completed local profile.
+- Editing the profile shall update the same remote user row identified by the installation ID; local state shall change only after remote success.
 
-The following requirements are mandatory for the current chat and every subsequent screen:
+The installation UUID is a prototype identity mechanism, not Supabase Auth or a security boundary.
 
-- A composable screen shall accept immutable state and an event callback. It shall have no required dependency on a repository, `Context`, `SharedPreferences`, Supabase, Room, Ktor, Firebase, or a coroutine scope used for data work.
-- Each feature screen shall define a single `UiState` contract. Loading, empty, error, and content values required by that feature shall be representable without parsing raw exceptions.
-- A ViewModel shall expose `StateFlow`, own feature coroutines in `viewModelScope`, validate actions, and map domain models to presentation models. UI code shall collect state with `collectAsStateWithLifecycle`.
-- Repository contracts shall be interfaces in the domain layer. Implementations shall be constructor-injected and replaceable by fakes in unit tests and previews.
-- `Activity` shall only host Compose and platform integration. It shall not call repositories or start feature connection jobs.
-- Backend timestamps shall be parsed and formatted outside composables. Timezone conversion and malformed input shall be handled without crashing rendering.
-- User-visible strings shall be defined in string resources. Raw backend errors, SQL, endpoint details, and stack traces shall not be displayed.
-- Feature code shall use app-owned text fields, buttons, scaffolds, and design tokens. Material 3 calls and numeric dimensions shall be centralized in `ui/components` and `ui/theme`; isolated one-off layout modifiers may use the shared spacing tokens.
-- Colors shall come from the active app theme. The theme shall use the brand palette by default; dynamic color shall be an explicit opt-in.
-- Screen variants shall implement the same state/event contract and shall be selected through `FeatureFlagProvider`. Repository or ViewModel behavior shall not depend on the selected visual variant.
-- The build shall support `-PCHAT_UI_VARIANT=CLASSIC` and `-PCHAT_UI_VARIANT=COMPACT`. The default shall be `CLASSIC`.
-- Every screen and reusable message component shall have offline previews covering representative content. Previews shall use fake UI state rather than repositories or network calls.
-- New layout code shall preserve stable lazy-list keys, accessible labels, touch targets, font scaling, and system insets. Autoscroll shall not pull a user away from older messages unless they are already near the latest message or sent the new message themselves.
+### 3.2. Contact Directory
 
-### 2.2. v1 Boundary and Non-Claims
+- The directory shall select all registered `public.users`, ordered by display name.
+- The current user shall be excluded by UUID, not by display name.
+- Every other registered user shall be selectable without prior approval or family membership.
+- Loading, empty, and failure states shall be explicit; retry shall be available after failure.
+- Returning to the directory shall refresh it so newly registered or renamed users can appear.
+- Selecting a contact shall open a personal chat with that user.
 
-- v1 uses Supabase directly behind `ChatRepository`; its message history is in memory and is not an offline cache.
-- v1 identifies a sender by the locally entered display name to preserve compatibility with the existing table. This is a temporary v1 rule, not authenticated identity. The target `sender_id` UUID model in section 6 supersedes it during the authentication migration.
-- v1 first-run registration consists of entering a display name that is trimmed, limited to 50 characters, and persisted locally. A non-blank saved name skips registration on later launches. This local onboarding does not create a Supabase Auth account or replace the authentication requirements in section 4.
-- The v1 profile section edits the same persisted display name. Blank names are rejected, and the chat observes changes through `UserProfileRepository`; the name is not synchronized to a remote profile.
-- v1 push notifications use FCM and a Supabase database trigger plus Edge Function. Devices register tokens through a validated security-definer RPC against a locally generated installation UUID, outgoing messages include that UUID, and the backend notifies other registered devices. Anonymous clients cannot directly read or mutate token rows, but v1 token ownership is not authenticated; the authenticated recipient model remains mandatory for production authorization.
-- v1 stores shared `delivered_at` and `read_at` timestamps on each row in the existing `messages` table. Receipt changes use monotonic security-definer RPC functions checked against the local installation UUID, while direct anonymous `UPDATE` access remains unavailable. In the pre-auth shared-family prototype, the first recipient device to read a message marks it read for everyone; per-user receipts require the authenticated target model.
-- Outgoing v1 messages display one check mark after the server insert appears, two gray check marks while `delivered_at` is set and `read_at` is empty, and two colored check marks after `read_at` is set. Incoming messages do not display sender receipts.
-- Message pushes include the recipient's unread count and first unread message ID. Android shows the count when it is greater than one and opens the chat at that first unread message.
-- Android requests notification permission after local registration, uses the high-importance `family_messages` channel with private lock-screen visibility, and opens the chat when a notification is tapped. Foreground and background message alerts share a stable notification identity, so each new alert replaces the previous chat notification. Missing Firebase client configuration disables push registration without affecting chat.
-- v1 UI variants are build-time flags. Runtime remote A/B rollout requires a remote `FeatureFlagProvider` implementation and analytics; it shall not be simulated with local preferences or presented as a production experiment platform.
-- Room, outbox retry, authentication, and media behavior described below remain requirements for later milestones rather than claims about v1 functionality.
+### 3.3. Direct Conversation Identity
 
-## 3. Configuration and Secrets
+- `get_or_create_direct_conversation(current_user_id, contact_id)` shall return one conversation UUID for the unordered pair.
+- The pair's canonical `direct_key` shall be unique, making concurrent creation idempotent.
+- Both users shall be present in `conversation_participants`.
+- A user shall not open a direct conversation with themselves.
+- Switching contacts shall cancel the previous chat connection, clear its in-memory page state, and resolve the newly selected conversation.
+- Returning to contacts shall stop the active conversation collection and remove its Realtime channel.
 
-- `SUPABASE_URL` and `SUPABASE_ANON_KEY` shall continue to be supplied through local build configuration rather than hard-coded in source.
-- The application shall never bundle a Supabase service-role key, FCM service-account credentials, or other privileged backend secrets.
-- Backend secrets shall be stored only in the Supabase function secret store or another approved server-side secret manager.
-- Production logs shall not contain access tokens, refresh tokens, message bodies, private media URLs, or full FCM payloads.
-- Network configuration shall not permit cleartext traffic to backend services.
+### 3.4. UUID Message Contract
 
-## 4. Authentication and Session Requirements
+- Users, conversations, and messages shall use UUID strings throughout DTO, domain, UI, notification, and RPC boundaries.
+- The client shall generate `messages.id` before insert.
+- Ownership shall use `sender_id == current_user_id`; display-name comparison is allowed only for migrated legacy rows with null `sender_id`.
+- Notification message and sender IDs shall be validated as UUIDs before navigation or receipt calls.
 
-### 4.1. Sign-In
+## 4. Current Relational Schema
 
-- The application shall support email/password sign-in through Supabase Auth.
-- The application shall support email-based one-time password sign-in through Supabase Auth.
-- Authentication errors shall be mapped to clear user-facing states without exposing backend internals.
-- Sign-in controls shall prevent duplicate submissions while a request is in progress.
+All user-data tables shall have RLS enabled. Current anonymous policies are a compatibility boundary, not production privacy.
 
-### 4.2. Session Persistence
-
-- A valid session shall survive application restart and process death.
-- Session restoration shall complete before the application decides whether to show authenticated content.
-- An expired session shall be refreshed through the Supabase client when possible.
-- A temporary network outage shall not sign the user out or delete cached conversations.
-- An unrecoverable authentication failure shall open the sign-in flow.
-- Signing out shall revoke the remote session where supported, cancel user-specific synchronization, close Realtime subscriptions, and clear private local state according to the selected sign-out policy.
-
-## 5. Family Membership, Profiles, and Contacts
-
-- Each authenticated user shall have exactly one core profile.
-- Family membership shall be provisioned by a trusted administrative process; arbitrary public self-enrollment shall not be supported.
-- The contact list shall contain only approved members of the current user's family, excluding the current user from their own recipient choices.
-- No public user search shall be exposed.
-- A user shall be able to update their display name, avatar, status icon, and status text.
-- Status text shall be length-limited and treated as untrusted input.
-- Profile changes shall update contact cards and chat headers through local cache updates and Realtime reconciliation.
-- Avatar files shall be stored in private Storage and loaded through authorized access.
-
-## 6. Remote Data Model
-
-All tables containing user data shall have Row Level Security enabled. Field nullability and constraints shall be enforced in database migrations, not only in client code.
-
-### 6.1. `families`
+### 4.1. `users`
 
 | Column | Type | Requirement |
 |---|---|---|
 | `id` | `uuid` | Primary key |
-| `name` | `text` | Optional display name for administration |
-| `created_at` | `timestamptz` | Server-generated creation time |
+| `device_id` | `uuid` | Unique current installation identifier |
+| `display_name` | `text` | Trimmed, non-empty, at most 50 characters |
+| `created_at` | `timestamptz` | Server-generated |
+| `updated_at` | `timestamptz` | Maintained by trigger |
 
-### 6.2. `family_members`
+Anonymous and authenticated directory reads are intentionally allowed by the current product requirement. Writes go through `register_user`; arbitrary direct directory writes are not required.
 
-| Column | Type | Requirement |
-|---|---|---|
-| `family_id` | `uuid` | References `families` |
-| `user_id` | `uuid` | References the authenticated user |
-| `created_at` | `timestamptz` | Server-generated creation time |
-
-The primary key shall be `(family_id, user_id)`. The initial product may contain one family, but authorization shall not rely on a hard-coded user ID list.
-
-### 6.3. `profiles`
+### 4.2. `conversations`
 
 | Column | Type | Requirement |
 |---|---|---|
-| `id` | `uuid` | Primary key; equals the Supabase Auth user ID |
-| `display_name` | `text` | Required, trimmed, non-empty |
-| `avatar_path` | `text` | Nullable private Storage object path |
-| `status_icon` | `text` | Nullable selected emoji |
-| `status_text` | `text` | Nullable short status text |
-| `updated_at` | `timestamptz` | Updated whenever the profile changes |
+| `id` | `uuid` | Primary key |
+| `is_group` | `boolean` | False for personal chats |
+| `title` | `text` | Nullable; optional group title |
+| `direct_key` | `text` | Nullable unique canonical user pair |
+| `created_at`, `updated_at` | `timestamptz` | Server-maintained |
 
-### 6.4. `messages`
+A direct conversation has a non-null key; a group conversation has a null key.
 
-| Column | Type | Requirement |
-|---|---|---|
-| `id` | `uuid` | Client-generated primary key used for idempotent synchronization |
-| `sender_id` | `uuid` | Required sender |
-| `receiver_id` | `uuid` | Required recipient |
-| `body` | `text` | Nullable message text |
-| `media_path` | `text` | Nullable private Storage object path |
-| `created_at` | `timestamptz` | Server-authoritative creation timestamp |
-| `delivered_at` | `timestamptz` | Nullable recipient delivery acknowledgement |
-| `read_at` | `timestamptz` | Nullable recipient read timestamp |
-| `deleted_at` | `timestamptz` | Nullable global-deletion tombstone |
-
-Constraints:
-
-- A message shall contain text, media, or both.
-- Sender and receiver shall be different approved members of the same family.
-- `read_at` shall not precede `delivered_at` in normal client transitions.
-- Once set, delivery, read, and deletion timestamps shall not be cleared by a client update.
-
-### 6.5. `message_hides`
-
-This table implements “delete for me” without changing another user's visibility.
+### 4.3. `conversation_participants`
 
 | Column | Type | Requirement |
 |---|---|---|
-| `message_id` | `uuid` | References the message |
-| `user_id` | `uuid` | User hiding the message |
-| `hidden_at` | `timestamptz` | Server-generated hide timestamp |
+| `conversation_id`, `user_id` | `uuid` | Composite primary key and foreign keys |
+| `role` | `text` | `admin` or `member` |
+| `joined_at` | `timestamptz` | Server-generated |
+| `last_read_message_id` | `uuid` | Nullable per-user read watermark |
 
-The primary key shall be `(message_id, user_id)`. Repeated hide operations shall be idempotent.
+An index shall exist on `user_id`. The watermark is target infrastructure; the current direct UI continues to use shared message receipt timestamps until receipt migration.
 
-### 6.6. `device_tokens`
+### 4.4. `messages`
 
 | Column | Type | Requirement |
 |---|---|---|
-| `user_id` | `uuid` | Device owner |
-| `device_id` | `uuid` | Stable locally generated installation identifier |
-| `fcm_token` | `text` | Current FCM registration token |
-| `updated_at` | `timestamptz` | Last registration update |
-
-A user may have multiple devices. A user shall manage only their own token rows.
-
-## 7. Authorization and Row Level Security
-
-RLS policies shall enforce at least the following rules:
-
-- A user can select and update their own profile.
-- A user can select profiles of approved members of the same family.
-- A user can insert a message only when `sender_id` equals the authenticated user ID and the receiver is an approved family member.
-- A user can select a message only if they are its sender or receiver and it is not globally deleted.
-- Only the recipient can set `delivered_at` or `read_at`.
-- Only the sender can set `deleted_at`.
-- A participant can create and select only their own `message_hides` records.
-- A user can register, update, and delete only their own device tokens.
-- Backend notification code shall use privileged access only in a trusted server environment.
-
-Policies shall be tested with two participants and at least one unrelated authenticated user. Client-side recipient filtering is not an authorization substitute.
-
-## 8. Local Persistence
-
-### 8.1. Room Requirements
-
-Room shall persist:
-
-- The current profile and visible family contacts.
-- Messages and their remote delivery, read, and deletion state.
-- Local outgoing state and local media references.
-- Per-user hidden state.
-- Pending outbox operations and retry metadata.
-- Optional synchronization checkpoints.
-
-Chat and contact screens shall observe Room queries. They shall not depend on direct PostgREST responses to render persistent content.
-
-### 8.2. Local Outgoing States
-
-An outgoing message shall support at least:
-
-- `PENDING` — created locally, not yet acknowledged by the server.
-- `SENDING` — an upload or insert attempt is currently running.
-- `FAILED` — the latest attempt failed and retry or user action is required.
-- `SENT` — the server has acknowledged the message.
-
-Remote delivery and read states shall be stored independently from local outgoing state.
-
-### 8.3. Outbox
-
-- Each retryable operation shall have a stable identifier and enough data to repeat the operation safely.
-- Outbox records shall survive process death and device restart.
-- Retry shall use WorkManager with network constraints and exponential backoff.
-- Successfully acknowledged operations shall be removed or marked complete.
-- Duplicate Realtime events, fetch responses, and retries shall not create duplicate messages or duplicate user-visible operations.
-
-## 9. Messaging Requirements
-
-### 9.1. Sending
-
-- The client shall generate the message UUID before the network request.
-- The message shall appear immediately in the local conversation with a pending indicator.
-- One check mark shall appear only after the server acknowledges the message insert.
-- A message composed offline shall remain queued and send automatically after connectivity returns.
-- Retry of an acknowledged operation shall not create another message.
-- Server `created_at` shall be used for definitive cross-device ordering; local creation time may be used for pending display.
-
-### 9.2. Receiving and Delivery
-
-- Foreground message changes shall be received through Supabase Realtime and persisted in Room.
-- The recipient shall set `delivered_at` only after the message has been validated and persisted locally.
-- Two gray check marks shall represent a non-null `delivered_at` with a null `read_at`.
-- Delivery acknowledgement shall be idempotent and retried if necessary.
-- An FCM message alone shall not be considered proof of local delivery.
-
-### 9.3. Read State and Unread Navigation
-
-- An incoming message is unread when it is not globally deleted, not hidden for the user, and has a null `read_at`.
-- On opening a conversation with unread messages, the initial viewport shall position the first unread incoming message and show the “Unread messages” separator above it.
-- If there are no unread messages, the conversation shall open at the latest message.
-- Viewing or scrolling through unread messages, or leaving the chat under the business rule, shall mark the applicable incoming messages as read.
-- Two colored check marks shall represent a non-null `read_at`.
-- Read state shall not regress when an older Realtime event arrives.
-- The separator shall disappear when its messages are read and shall not reappear on the next chat opening.
-
-### 9.4. Pagination and Ordering
-
-- Initial chat loading shall be bounded through pagination rather than loading an unbounded history into memory.
-- Older messages shall be loadable on demand and merged into Room.
-- Messages shall be ordered deterministically by server creation time with UUID as a tie-breaker.
-- Pending outgoing messages shall remain visibly ordered at the appropriate end of the conversation until acknowledged.
-
-## 10. Deletion Requirements
-
-### 10.1. Delete for Me
-
-- The selected message shall disappear immediately from the current user's local conversation.
-- The application shall create an idempotent remote hide record when connectivity is available.
-- Reconciliation shall not restore a message hidden for the current user.
-- The operation shall not change the other participant's message, media access, delivery state, or read state.
-
-### 10.2. Delete for Everyone
-
-- The action shall be available only to the sender.
-- The backend shall set a deletion tombstone rather than relying solely on immediate physical deletion.
-- Recipient devices shall remove the message from visible state and delete its local cached copy after receiving or reconciling the tombstone.
-- A device that was offline shall receive the deletion state during later reconciliation.
-- Associated message media shall be deleted from private Storage by authorized backend logic.
-- Failure to delete a Storage object shall not resurrect the message; orphaned-file cleanup shall be retried.
-
-## 11. Media Requirements
-
-- Message images and avatars shall use private Supabase Storage buckets.
-- The database shall store private object paths, not permanent public URLs.
-- Uploads shall use generated object names that cannot collide across users or messages.
-- Image selection shall handle large camera images through downscaling and compression before upload where appropriate.
-- The initial supported formats shall be JPEG, PNG, and WebP.
-- A message image upload shall have a maximum source size of 10 MB unless the limit is revised in a later requirement.
-- Failed uploads shall be retryable without duplicating the message.
-- Cached media associated with a globally deleted message shall be removed.
-- UI image rendering shall include loading and failure placeholders and shall not block the main thread.
-
-## 12. Realtime, Reconciliation, and Connectivity
-
-- Realtime subscriptions shall start only for an authenticated user and shall be recreated after session changes.
-- A Realtime event shall trigger validated persistence or fetch of the authoritative record.
-- Reconnection shall trigger incremental reconciliation because events may have been missed while disconnected.
-- Reconciliation shall run after initial sign-in and after relevant push-driven synchronization.
-- All remote writes shall be idempotent or protected against duplicate application.
-- Connectivity callbacks may trigger immediate retry, but WorkManager remains the durable retry mechanism.
-- The UI shall distinguish pending, failed, sent, delivered, and read states without treating connectivity loss as message loss.
-
-## 13. Push Notifications and Quick Replies
-
-### 13.1. Notifications
-
-- FCM shall provide background notifications and synchronization hints; it shall not replace persistent backend storage or reconciliation.
-- A trusted Supabase backend trigger or Edge Function shall send notifications after a message is created.
-- The client shall register and refresh its FCM token for the authenticated user.
-- Invalid device tokens shall be removed by backend notification logic.
-- On Android 13 and later, the application shall request notification permission at an appropriate point in the user flow.
-- Notifications shall use a dedicated message channel and shall not expose sensitive content on the lock screen contrary to the user's system privacy settings.
-- Opening a notification shall open the corresponding conversation at the correct unread position.
-
-### 13.2. Quick Replies
-
-- Notifications for direct messages shall expose applicable predefined actions such as ❤️, “Leaving now,” and “Waiting for you at dinner.”
-- A quick reply shall create a normal message using the same UUID, Room, outbox, and synchronization path as an in-app message.
-- A quick reply created without connectivity shall remain pending until synchronization is possible.
-- The notification action shall provide immediate feedback and shall not claim successful server delivery before acknowledgement.
-
-## 14. Error Handling and Recovery
-
-- Expected failures shall be represented explicitly: no connectivity, authentication required, permission denied, upload failed, synchronization pending, or operation failed.
-- Error messages shall not expose SQL, stack traces, access tokens, or private endpoint details to the user.
-- Transient requests shall use bounded retries with backoff; non-retryable authorization failures shall not be retried in a loop.
-- Local cached data shall remain available during backend outages.
-- Database migration tests shall be required after the initial Room schema is released.
-- Remote schema changes shall be delivered through reproducible Supabase migrations.
-
-## 15. Non-Functional Requirements
-
-### 15.1. Performance
-
-- A previously cached conversation shall render usable local content within one second on a representative supported device under normal local load.
-- Scrolling shall remain responsive while images load or synchronization runs.
-- Network and file operations shall run off the main thread.
-- Initial message loading and image decoding shall be bounded to avoid excessive memory consumption.
-
-### 15.2. Reliability
-
-- A locally created outgoing message shall survive process death before upload.
-- Replaying the same event or outbox operation shall not produce duplicates.
-- Read and delivery states shall be monotonic.
-- A missed Realtime event shall be recoverable through reconciliation.
-- Global deletion shall remain effective for devices that reconnect later.
-
-### 15.3. Usability and Accessibility
-
-- Loading, empty, offline, pending, and failed states shall be visibly distinguishable where relevant.
-- Interactive elements shall have accessible labels and adequate touch targets.
-- Message status shall not be communicated by color alone; check-mark shape or count shall also distinguish it.
-- Compose layouts shall respect system font scaling and avoid clipping core actions.
-
-## 16. Testing Requirements
-
-### 16.1. Unit Tests
-
-Unit tests shall cover:
-
-- ViewModel input validation, send success/failure, name persistence, and domain-to-UI mapping using fake repositories.
-- Timestamp parsing, local-time formatting, and malformed backend input.
-- UI variant independence: both variants shall be renderable with the same fake `ChatUiState` without repository initialization.
-- Compose event emission and enabled/disabled actions using fake state.
-- Screenshot regression tests shall be added when a screenshot-test runner is adopted; design-system changes shall then be reviewed against golden images in CI.
-- Mapping remote and local message states to check-mark presentation.
-- Outbox idempotency and retry transitions.
-- Unread-message selection and separator behavior.
-- Monotonic delivery and read updates.
-- Delete-for-me and delete-for-everyone rules.
-- Deterministic message ordering.
-- Session restoration decisions without real network calls.
-
-### 16.2. Local Integration Tests
-
-Room tests shall cover DAO queries, transactions, migrations, outbox persistence, and process-restart-equivalent recovery of pending operations.
-
-### 16.3. Backend Security Tests
-
-Automated or reproducible integration tests shall verify RLS and Storage policies using:
-
-- The sender.
-- The recipient.
-- Another member of the same family who is not a participant.
-- An unrelated authenticated user.
-- An unauthenticated request where applicable.
-
-### 16.4. End-to-End Scenarios
-
-The following scenarios shall pass before the core feature set is accepted:
-
-1. Sign in with each supported method, restart the app, and remain authenticated.
-2. Open a cached chat in airplane mode and display its history.
-3. Compose a message offline, restart the app, reconnect, and send exactly one remote message.
-4. Receive a message in the foreground and transition the sender from sent to delivered to read.
-5. Open a chat at the first unread message and verify that the separator clears correctly.
-6. Delete a message for one user without affecting the other user.
-7. Delete a message for everyone while the recipient is offline; verify deletion and media cleanup after reconnect.
-8. Receive a background notification, open the correct chat, and send a predefined quick reply.
-9. Update a profile and verify the contact card and chat header update.
-10. Reconnect after a Realtime interruption and reconcile missed changes without duplicates.
-
-## 17. Deliverables and Traceability
-
-Implementation shall include:
-
-- Versioned Supabase schema migrations and RLS policies.
-- Storage bucket policies and backend notification deployment configuration.
-- Room schemas and migrations.
-- Android feature implementation and synchronization workers.
-- Tests covering the requirements above.
-- Configuration instructions that do not expose private credentials.
-
-Changes to message visibility, delivery, read state, or deletion shall update both this document and the architecture document so the implementation contract remains unambiguous.
+| `id` | `uuid` | Client-generated primary key |
+| `conversation_id` | `uuid` | Required conversation boundary |
+| `sender_id` | `uuid` | Nullable only for migrated legacy rows |
+| `sender`, `sender_device_id` | `text`, `uuid` | Current display snapshot and installation receipt/push compatibility |
+| `text` | `text` | Current required text payload |
+| `metadata` | `jsonb` | Non-null extensible metadata |
+| `parent_id` | `uuid` | Nullable future threaded-reply reference |
+| `created_at` | `timestamptz` | Server-authoritative order |
+| `delivered_at`, `read_at` | `timestamptz` | Current shared direct-chat receipts |
+| `deleted_at` | `timestamptz` | Nullable soft-delete tombstone |
+
+The migration shall preserve old content in a legacy group conversation and retain the old table as inaccessible `legacy_messages`. Old `bigint` receipt functions shall not remain callable.
+
+## 5. Pagination and Ordering
+
+- Initial history shall be limited to 50 messages; the RPC shall cap any requested page at 100.
+- The index `(conversation_id, created_at DESC, id DESC)` shall support history queries.
+- Older history shall use keyset condition `(created_at, id) < (:before_created_at, :before_id)`.
+- `OFFSET` and unbounded message-table loading shall not be used for chat history.
+- Pages shall be reversed only at the repository boundary for ascending presentation.
+- Realtime and older-page rows shall be upserted by UUID without duplicates.
+- Deleted rows shall not be returned by history; a deleted Realtime row shall be removed from in-memory presentation.
+- Reconnect shall refresh the latest bounded page. Older pages may be discarded and reloaded; no false offline persistence claim shall be made.
+- Read-watermark comparisons shall use `(created_at, id)`, never numeric UUID comparison.
+
+## 6. Sending, Realtime, and Receipts
+
+- Sending shall include client-generated message UUID, resolved conversation UUID, current user UUID, trimmed display-name snapshot, and installation UUID.
+- Sending shall not mutate another conversation's state.
+- Realtime insert/update flows shall be filtered by active `conversation_id` and decoded through the DTO boundary.
+- A sent message shall appear after server acknowledgement through Realtime; no durable offline queue is currently claimed.
+- Delivery/read RPCs shall accept UUID arrays and advance timestamps monotonically with `coalesce`.
+- Incoming messages shall be acknowledged only for the active conversation.
+- Opening a visible chat shall retain first-unread anchoring and mark incoming messages read through the current shared-receipt path.
+- Expected failures shall update typed state without exposing SQL, stack traces, or message contents in logs.
+
+## 7. Push Notifications
+
+- The trigger shall call `send-message-push` for new UUID messages.
+- The function shall fetch the authoritative row and resolve recipients through `conversation_participants`, excluding the sender.
+- Tokens shall be limited to recipient users and the sender installation shall be excluded.
+- Unread count and first unread ID shall be calculated only inside the affected conversation and shall exclude soft-deleted rows.
+- Payloads shall include `message_id`, `conversation_id`, `sender_id`, sender display name, unread count, and first unread ID.
+- Different conversations shall use different notification tags.
+- Opening a notification shall open the sender's personal chat at the requested unread UUID.
+- Self-notification suppression shall use sender user UUID; display-name fallback is only for legacy payloads.
+- Invalid tokens shall be removed. Real delivery still requires Firebase configuration and the backend service-account secret.
+
+## 8. Target Authentication and Authorization
+
+The current all-user directory is intentional. Current anonymous message access and installation UUIDs are not private production authorization.
+
+The production migration shall add Supabase Auth, persistent sessions, user-bound identities and tokens, and participant-based RLS:
+
+- Users may read the directory as allowed by product policy.
+- Only participants may select a conversation or its messages.
+- A sender may insert only as their authenticated user into a conversation they belong to.
+- Only authorized recipients may advance delivery/read state or watermarks.
+- Only the sender may set a global deletion tombstone.
+- Per-user hiding shall not affect another participant.
+- Service-role and FCM credentials shall remain backend-only; webhook authorization shall be enabled for production.
+
+RLS tests shall include both participants, a registered non-participant, and an unauthenticated caller.
+
+## 9. Target Offline, Media, and Synchronization Requirements
+
+Room shall become the local rendering source for contacts, conversations, and messages. Realtime, pagination, and reconciliation shall share idempotent upserts. A durable outbox shall survive process death, retry with WorkManager network constraints and exponential backoff, and reuse message UUIDs to prevent duplicates.
+
+Per-user watermarks shall advance monotonically. Unread counts and separators shall derive from message order relative to the watermark. Global soft deletion shall reconcile to offline devices. Delete-for-me shall use a per-user hide record.
+
+Media shall use private Supabase Storage paths, generated non-colliding names, downscaling/compression where appropriate, and retry without message duplication. FCM shall remain a hint rather than proof of local persistence.
+
+## 10. Required Tests and Verification
+
+Current and future changes shall preserve or add tests for:
+
+- Remote registration success/failure, validation, duplicate prevention, and local persistence rules.
+- All-user directory loading, self-exclusion by UUID, retry, and contact selection.
+- Contact-to-chat navigation and returning to contacts/profile.
+- Idempotent direct-pair creation and rejection of self-conversations through reproducible backend checks.
+- UUID mapping through DTO/domain/UI/notification boundaries.
+- Ownership by user UUID, including duplicate display names.
+- Message status mapping, unread selection, send success/failure, and stable lazy-list keys.
+- Initial page limits, keyset cursor correctness, deterministic ordering, duplicate-page upsert, and conversation isolation.
+- Monotonic receipts/watermarks and both deletion modes when implemented.
+- Room DAO/transaction/migration and outbox recovery after local persistence is introduced.
+- Participant RLS and real two-device FCM delivery before production security/delivery claims.
+
+Standard local verification is `./gradlew testDebugUnitTest`, `compileDebugAndroidTestKotlin`, `assembleDebug`, and `lintDebug`. Instrumented tests require a device. SQL migrations require local-stack validation or a documented dry-run; neither Android fake tests nor compilation prove backend behavior.
+
+Changes to message visibility, delivery, read state, or deletion shall update both this document and `doc/architecture.md`.

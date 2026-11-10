@@ -6,6 +6,7 @@ import com.eopera.youhoo.domain.repository.UserProfileRepository
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import dagger.hilt.android.AndroidEntryPoint
+import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,12 +35,14 @@ class MessageFirebaseMessagingService : FirebaseMessagingService() {
         val sender = message.data["sender"]
             ?: message.notification?.title
             ?: return
-        if (sender == userProfileRepository.senderName.value.trim()) return
+        val senderId = message.data["sender_id"]
+        if (senderId != null && senderId == userProfileRepository.userId.value) return
+        if (senderId == null && sender == userProfileRepository.senderName.value.trim()) return
         val text = message.data["text"] ?: message.notification?.body.orEmpty()
         val messageId = message.data["message_id"] ?: message.messageId ?: return
         val unreadCount = message.data["unread_count"]?.toIntOrNull() ?: 1
         val firstUnreadMessageId = message.data["first_unread_message_id"]
-        messageId.toLongOrNull()?.let { id ->
+        parseUuid(messageId)?.let { id ->
             serviceScope.launch {
                 chatRepository.markMessagesDelivered(listOf(id))
             }
@@ -49,7 +52,9 @@ class MessageFirebaseMessagingService : FirebaseMessagingService() {
             sender = sender,
             text = text,
             unreadCount = unreadCount,
-            firstUnreadMessageId = firstUnreadMessageId
+            firstUnreadMessageId = firstUnreadMessageId,
+            senderId = message.data["sender_id"],
+            conversationId = message.data["conversation_id"]
         )
     }
 
@@ -57,4 +62,8 @@ class MessageFirebaseMessagingService : FirebaseMessagingService() {
         serviceScope.cancel()
         super.onDestroy()
     }
+
+    private fun parseUuid(value: String): String? = runCatching {
+        UUID.fromString(value).toString()
+    }.getOrNull()
 }

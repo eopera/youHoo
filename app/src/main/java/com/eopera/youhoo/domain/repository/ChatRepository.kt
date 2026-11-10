@@ -7,13 +7,16 @@ import kotlinx.coroutines.flow.StateFlow
 interface ChatRepository {
     val messages: StateFlow<List<Message>>
     val connectionStatus: StateFlow<ConnectionStatus>
+    val hasOlderMessages: StateFlow<Boolean>
 
-    /** Loads history and collects realtime updates until the caller is cancelled. */
-    suspend fun connect()
+    /** Opens a direct conversation and collects its realtime updates until cancelled. */
+    suspend fun connect(contactId: String)
+
+    suspend fun loadOlderMessages(): Result<Unit>
 
     suspend fun sendMessage(text: String, sender: String): Result<Unit>
 
-    suspend fun markMessagesDelivered(messageIds: List<Long>): Result<Unit>
+    suspend fun markMessagesDelivered(messageIds: List<String>): Result<Unit>
 
-    suspend fun markMessagesRead(messageIds: List<Long>): Result<Unit>
+    suspend fun markMessagesRead(messageIds: List<String>): Result<Unit>
 }

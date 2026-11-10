@@ -1,15 +1,22 @@
 <resources>
     <string name="app_name">youHoo</string>
     <string name="notification_channel_messages" translatable="false">family_messages</string>
-    <string name="notification_channel_name">Family messages</string>
-    <string name="notification_channel_description">Notifications about new family messages</string>
-    <string name="chat_title">Family Messenger</string>
+    <string name="notification_channel_name">Messages</string>
+    <string name="notification_channel_description">Notifications about new personal messages</string>
+    <string name="chat_title">Chat</string>
+    <string name="contacts_title">Contacts</string>
+    <string name="contacts_loading">Loading contacts…</string>
+    <string name="contacts_empty">No other registered users yet.</string>
+    <string name="contacts_error">Could not load contacts. Check your connection and try again.</string>
     <string name="your_name">Your name</string>
     <string name="registration_title">Welcome to youHoo</string>
-    <string name="registration_description">Enter your name to start messaging your family.</string>
+    <string name="registration_description">Enter your name to join the contact directory and start personal chats.</string>
     <string name="registration_continue">Continue</string>
+    <string name="registration_registering">Registering…</string>
+    <string name="registration_error">Registration failed. Check your connection and try again.</string>
     <string name="profile_title">Profile</string>
     <string name="profile_save">Save</string>
+    <string name="profile_error">Could not update your profile. Try again.</string>
     <string name="back">Back</string>
     <string name="message_hint">Message</string>
     <string name="send">Send</string>

@@ -17,6 +17,7 @@ import com.eopera.youhoo.ui.components.AppBackIcon
 import com.eopera.youhoo.ui.components.AppButton
 import com.eopera.youhoo.ui.components.AppIconButton
 import com.eopera.youhoo.ui.components.AppScaffold
+import com.eopera.youhoo.ui.components.AppText
 import com.eopera.youhoo.ui.components.AppTextField
 import com.eopera.youhoo.ui.theme.AppTheme
 import com.eopera.youhoo.ui.theme.YouHooTheme
@@ -66,8 +67,13 @@ fun ProfileScreen(
                 label = stringResource(R.string.your_name),
                 modifier = Modifier.fillMaxWidth()
             )
+            if (state.showError) {
+                AppText(text = stringResource(R.string.profile_error), isError = true)
+            }
             AppButton(
-                text = stringResource(R.string.profile_save),
+                text = stringResource(
+                    if (state.isSaving) R.string.sending else R.string.profile_save
+                ),
                 onClick = { onEvent(ProfileEvent.SaveName) },
                 enabled = state.canSave,
                 modifier = Modifier.fillMaxWidth()

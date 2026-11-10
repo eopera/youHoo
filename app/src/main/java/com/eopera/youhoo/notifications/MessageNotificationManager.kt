@@ -40,7 +40,9 @@ class MessageNotificationManager @Inject constructor(
         sender: String,
         text: String,
         unreadCount: Int = 1,
-        firstUnreadMessageId: String? = null
+        firstUnreadMessageId: String? = null,
+        senderId: String? = null,
+        conversationId: String? = null
     ) {
         createChannel()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -55,6 +57,8 @@ class MessageNotificationManager @Inject constructor(
         val intent = Intent(context, MainActivity::class.java).apply {
             action = ACTION_OPEN_MESSAGE
             putExtra(EXTRA_MESSAGE_ID, firstUnreadMessageId ?: messageId)
+            putExtra(EXTRA_SENDER_ID, senderId)
+            putExtra(EXTRA_SENDER_NAME, sender)
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val contentIntent = PendingIntent.getActivity(
@@ -78,7 +82,7 @@ class MessageNotificationManager @Inject constructor(
             }
             .build()
         NotificationManagerCompat.from(context).notify(
-            NOTIFICATION_TAG,
+            conversationId?.let { "conversation_$it" } ?: NOTIFICATION_TAG,
             NOTIFICATION_ID,
             notification
         )
@@ -90,5 +94,7 @@ class MessageNotificationManager @Inject constructor(
         const val NOTIFICATION_ID = 0
         const val ACTION_OPEN_MESSAGE = "com.eopera.youhoo.OPEN_MESSAGE"
         const val EXTRA_MESSAGE_ID = "message_id"
+        const val EXTRA_SENDER_ID = "sender_id"
+        const val EXTRA_SENDER_NAME = "sender_name"
     }
 }

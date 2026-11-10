@@ -1,19 +1,26 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 type MessageRecord = {
-  id: number;
+  id: string;
+  conversation_id: string;
   text: string;
   sender: string;
+  sender_id: string | null;
   sender_device_id: string | null;
+};
+
+type Participant = {
+  user_id: string;
 };
 
 type DeviceToken = {
   device_id: string;
   fcm_token: string;
+  user_id: string;
 };
 
 type UnreadMessage = {
-  id: number;
+  id: string;
 };
 
 type ServiceAccount = {
@@ -24,6 +31,7 @@ type ServiceAccount = {
 };
 
 const encoder = new TextEncoder();
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function base64Url(value: Uint8Array | string): string {
   const bytes = typeof value === "string" ? encoder.encode(value) : value;
@@ -68,7 +76,7 @@ async function firebaseAccessToken(account: ServiceAccount): Promise<string> {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        grant_type: "urn:ietf:params:oauth2:grant-type:jwt-bearer",
         assertion: `${unsignedToken}.${base64Url(new Uint8Array(signature))}`,
       }),
     },
@@ -90,8 +98,10 @@ Deno.serve(async (request) => {
 
   try {
     const payload = await request.json();
-    const messageId = Number(payload.record?.id);
-    if (!Number.isSafeInteger(messageId)) return json({ error: "Invalid message" }, 400);
+    const messageId = payload.record?.id;
+    if (typeof messageId !== "string" || !uuidPattern.test(messageId)) {
+      return json({ error: "Invalid message" }, 400);
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -99,14 +109,26 @@ Deno.serve(async (request) => {
     );
     const { data: message, error: messageError } = await supabase
       .from("messages")
-      .select("id,text,sender,sender_device_id")
+      .select("id,conversation_id,text,sender,sender_id,sender_device_id")
       .eq("id", messageId)
       .single<MessageRecord>();
     if (messageError || !message) return json({ error: "Message not found" }, 404);
 
+    const { data: participantRows, error: participantsError } = await supabase
+      .from("conversation_participants")
+      .select("user_id")
+      .eq("conversation_id", message.conversation_id)
+      .neq("user_id", message.sender_id ?? "");
+    if (participantsError) throw participantsError;
+    const recipientIds = ((participantRows as Participant[] | null) ?? []).map(
+      (participant) => participant.user_id,
+    );
+    if (!recipientIds.length) return json({ sent: 0, removed: 0 });
+
     const { data: tokens, error: tokensError } = await supabase
       .from("device_tokens")
-      .select("device_id,fcm_token");
+      .select("device_id,fcm_token,user_id")
+      .in("user_id", recipientIds);
     if (tokensError) throw tokensError;
     const recipients = (tokens as DeviceToken[] | null)?.filter(
       (device) => device.device_id !== message.sender_device_id,
@@ -125,8 +147,11 @@ Deno.serve(async (request) => {
       const { data: unreadMessages, error: unreadError } = await supabase
         .from("messages")
         .select("id")
+        .eq("conversation_id", message.conversation_id)
         .neq("sender_device_id", device.device_id)
         .is("read_at", null)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: true })
         .order("id", { ascending: true });
       if (unreadError) throw unreadError;
       const unread = (unreadMessages as UnreadMessage[] | null) ?? [];
@@ -146,19 +171,21 @@ Deno.serve(async (request) => {
               token: device.fcm_token,
               notification: { title: message.sender, body: text },
               data: {
-                message_id: String(message.id),
-                first_unread_message_id: String(firstUnreadMessageId),
+                message_id: message.id,
+                conversation_id: message.conversation_id,
+                first_unread_message_id: firstUnreadMessageId,
                 unread_count: String(unreadCount),
+                sender_id: message.sender_id ?? "",
                 sender: message.sender,
                 text,
               },
-              android: {
-                priority: "HIGH",
-                notification: {
-                  channel_id: "family_messages",
-                  tag: "family_messages",
-                  notification_count: unreadCount,
-                },
+            },
+            android: {
+              priority: "HIGH",
+              notification: {
+                channel_id: "family_messages",
+                tag: `conversation_${message.conversation_id}`,
+                notification_count: unreadCount,
               },
             },
           }),
