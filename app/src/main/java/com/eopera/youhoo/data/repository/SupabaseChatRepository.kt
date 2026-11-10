@@ -70,7 +70,7 @@ class SupabaseChatRepository @Inject constructor(
                     userId = currentUserId,
                     otherUserId = contactId
                 )
-            ).decodeSingle<String>()
+            ).decodeAs<String>()
             activeConversationId = conversationId
             refreshMessages(conversationId)
 
